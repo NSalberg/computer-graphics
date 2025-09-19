@@ -51,7 +51,7 @@ int main(int argc, char *argv[]){
   Line2D l4 = project(l3,p3);
   printf("Project Line l3 onto Point p3 is %s (should be: x-2y+2=0)\n",string(l4).c_str());
 
-  printf("Angle between lines l1 and l2 is %f (should be ~2.678 or ~0.464)\n",angle(l1,l2));
+  printf("Angle between lines l1 and l2 is %f (should be ~2.678 or ~0.464)\n", angle(l1,l2));
 
 
   printf("\nTesting Intersections:\n");
@@ -112,4 +112,15 @@ int main(int argc, char *argv[]){
   Point2D pC = Point2D(1,1);
   Point2D p_test = Point2D(-1,0);
   printf("Distance from p_test to triangle edge is %f (should be 1)\n",pointTriangleEdgeDist(p_test,pA,pB,pC));
+  p_test = Point2D(0,-1);
+  printf("Distance from p_test to triangle edge is %f (should be 1)\n",pointTriangleEdgeDist(p_test,pA,pB,pC));
+  p_test = Point2D(-1,-1);
+  printf("Distance from p_test to triangle edge is %f (should be 1)\n",pointTriangleEdgeDist(p_test,pA,pB,pC));
+  p_test = Point2D(0.4,-1);
+  printf("Distance from p_test to triangle edge is %f\n",pointTriangleEdgeDist(p_test,pA,pB,pC));
+  p_test = Point2D(0.25,0.1);
+  printf("Distance from p_test to triangle edge is %f\n",pointTriangleEdgeDist(p_test,pA,pB,pC));
+
+
+
 }

@@ -16,7 +16,7 @@ struct Line2D{
 
   Line2D(MultiVector mv);
 
-  float magnitude(){
+  float magnitude() const{
     return sqrt(x*x+y*y);
   }
 
