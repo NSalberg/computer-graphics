@@ -70,7 +70,7 @@ Line2D project(Line2D l, Point2D p) {
 // The results is a scalar
 float angle(Line2D l1, Line2D l2) {
 
-  return std::acos(dot(l1.normalized(), l2.normalized())) * (180.0/3.141592653589793238463);
+  return std::acos(dot(l1.normalized(), l2.normalized()));
 }
 
 // Compute if the line segment p1->p2 intersects the line segment a->b
@@ -131,19 +131,19 @@ float pointTriangleEdgeDist(Point2D p, Point2D t1, Point2D t2, Point2D t3) {
 
   Point2D points[3] = {t1, t2, t3};
 
-  printf("%f \n", dist(p,t1));
-  printf("%f \n", dist(p,t2));
-  printf("%f \n", dist(p,t3));
+  // printf("%f \n", dist(p,t1));
+  // printf("%f \n", dist(p,t2));
+  // printf("%f \n", dist(p,t3));
 
   std::sort(points, points + 3, 
       [&p](const Point2D& a, const Point2D& b) {
           return dist(p,a) < dist(p,b);
       });
-  printf("%f %f\n", points[0].x, points[1].y);
+  // printf("%f %f\n", points[0].x, points[1].y);
 
   auto dot1 = dot(join(p, points[0]).normalized(), join(points[0], points[1]).normalized());
   auto dot2 = dot(join(p, points[0]).normalized(), join(points[0], points[2]).normalized());
-  printf("dot1 %f, dot2 %f \n", dot1, dot2);
+  // printf("dot1 %f, dot2 %f \n", dot1, dot2);
   if (dot1 < 0.0f ){
     return dist(p.normalized(), join(points[0],points[1]).normalized());
   } else if (dot2 < 0.0f) {

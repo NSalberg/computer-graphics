@@ -115,7 +115,7 @@ int main(int argc, char *argv[]){
   p_test = Point2D(0,-1);
   printf("Distance from p_test to triangle edge is %f (should be 1)\n",pointTriangleEdgeDist(p_test,pA,pB,pC));
   p_test = Point2D(-1,-1);
-  printf("Distance from p_test to triangle edge is %f (should be 1)\n",pointTriangleEdgeDist(p_test,pA,pB,pC));
+  printf("Distance from p_test to triangle edge is %f (should be 1.41)\n",pointTriangleEdgeDist(p_test,pA,pB,pC));
   p_test = Point2D(0.4,-1);
   printf("Distance from p_test to triangle edge is %f\n",pointTriangleEdgeDist(p_test,pA,pB,pC));
   p_test = Point2D(0.25,0.1);
