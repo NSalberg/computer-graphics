@@ -7,6 +7,7 @@
 // -framework SDL3 -Wl,-rpath,$HOME/Library/Frameworks
 // clang-format off
 #include "glad/glad.h"  //Include order can matter here
+#include <SDL3/SDL_keycode.h>
 #include <cmath>
 #if defined(__APPLE__) || defined(__linux__)
   #include <SDL3/SDL.h>
@@ -25,7 +26,7 @@ using namespace std;
 // clang-format on
 
 // Name of image texture
-string textureName = "test.ppm";
+string textureName = "goldy.ppm";
 
 // Screen size
 int screen_width = 800;
@@ -77,8 +78,8 @@ void updateVertices();
 bool do_translate = false;
 bool do_rotate = false;
 bool do_scale = false;
+float brightness = 1.0f;
 
-// TODO: Read from ASCII (P3) PPM files properly
 // Note: Reference/output variables img_w and img_h used to return image width
 // and height
 unsigned char *loadImage(int &img_w, int &img_h) {
@@ -113,23 +114,21 @@ unsigned char *loadImage(int &img_w, int &img_h) {
     exit(1);
   }
 
-  // TODO: This loop reads fake data. Replace it with code to read in the actual
-  // pixel values from the file
-  // TODO:    ... see the project description for a hint on how to do this
-  for (int i = 0; i < img_h; i++) {
-    float fi = i / (float)img_h;
+  for (int i = img_h - 1; i >= 0; i--) {
     for (int j = 0; j < img_w; j++) {
-      float fj = j / (float)img_w;
-      img_data[i * img_w * 4 + j * 4] = 50;           // Red
-      img_data[i * img_w * 4 + j * 4 + 1] = fj * 150; // Green
-      img_data[i * img_w * 4 + j * 4 + 2] = fi * 250; // Blue
-      img_data[i * img_w * 4 + j * 4 + 3] = 255;      // Alpha
+
+      int r, g, b;
+      ppmFile >> r >> g >> b;
+      img_data[i * img_w * 4 + j * 4] = std::min(r * 2, 255);     // Red
+      img_data[i * img_w * 4 + j * 4 + 1] = std::min(g * 2, 255); // Green
+      img_data[i * img_w * 4 + j * 4 + 2] = std::min(b * 2, 255); // Blue
+      img_data[i * img_w * 4 + j * 4 + 3] = 255;                  // Alpha
     }
   }
   return img_data;
 }
 
-// TODO: Choose between translation, rotation, and scaling based on where the
+// Choose between translation, rotation, and scaling based on where the
 // mouse was when the user clicked
 //  In this temporary example code, I always assume a translation operation. Fix
 //  this to switch between the 3 operations of translate, rotate, and scale
@@ -165,16 +164,6 @@ void mouseClicked(float m_x, float m_y) {
   }
 }
 
-// TODO 1: Update the position, rotation angle, or scale of the rectangle based
-// on how far the mouse has moved
-//        I've implemented translation for you as an example. You need to
-//        implement rotation and scaling
-
-// TODO 2: Notice how smooth the rectangle moves when you drag it (e.,g there
-// are no "jumps" or stutters when you click)
-//       Try to make your implementation of rotation and scaling also be as
-//       smooth
-
 void mouseDragged(float m_x, float m_y) {
   Point2D cur_mouse = Point2D(m_x, m_y);
 
@@ -192,8 +181,8 @@ void mouseDragged(float m_x, float m_y) {
     float initial_dist = (clicked_mouse - rect_pos).magnitude();
     float current_dist = (cur_mouse - rect_pos).magnitude();
     if (initial_dist > 0) {
-        float scale_ratio = current_dist / initial_dist;
-        rect_scale = clicked_size * scale_ratio;
+      float scale_ratio = current_dist / initial_dist;
+      rect_scale = clicked_size * scale_ratio;
     }
   }
 
@@ -245,6 +234,10 @@ void mouseDragged(float m_x, float m_y) {
   updateVertices();
 }
 
+void brighten_array() {
+  // WAHT DO I DO HERE
+}
+
 // You shouldn't need to change this function.
 // It updates the displayed vertices to match the current positions of p1, p2,
 // p3, p4
@@ -259,13 +252,12 @@ void updateVertices() {
   vertices[22] = p1.y; // Bottom left x & y
 }
 
-// TODO: Implement this function to reset the rectangle to its initial position,
-// size, and angle
 void r_keyPressed() {
   cout << "The 'r' key was pressed" << endl;
   rect_pos = Point2D(0, 0);
   rect_scale = 1;
   rect_angle = 0;
+  brightness = 1.0f;
   p1 = init_p1;
   p2 = init_p2;
   p3 = init_p3;
@@ -294,14 +286,16 @@ const GLchar *vertexSource =
     "void main() { Color = inColor; gl_Position = vec4(position, 0.0, 1.0); "
     "texcoord = inTexcoord; }"; // Position is a vec4 (x,y,z,w) so z=0 and w=1
 const GLchar *fragmentSource = "#version 150 core\n"
+                               "uniform float brightness;"
                                "uniform sampler2D tex0; in vec2 texcoord; out "
                                "vec3 outColor;" // Input texture and texture
                                                 // coordinates from vertex
                                                 // shader, output is pixel color
                                "void main() { outColor = texture(tex0, "
-                               "texcoord).rgb; }"; // Set pixel color based on
-                                                   // texture color at the
-                                                   // texture coordinates
+                               "texcoord).rgb * brightness; }";
+// Set pixel color based on
+// texture color at the
+// texture coordinates
 
 int main(int argc, char *argv[]) {
 
@@ -317,7 +311,6 @@ int main(int argc, char *argv[]) {
   SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 2);
 
   // Create a window (title, width, height, flags)
-  // TODO: TEST your understanding: Try changing the title of the window to
   // something more personalized.
   SDL_Window *window = SDL_CreateWindow("Project 1", screen_width,
                                         screen_height, SDL_WINDOW_OPENGL);
@@ -375,7 +368,6 @@ int main(int argc, char *argv[]) {
                   GL_LINEAR); // GL_NEAREST, GL_LINEAR, etc.
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER,
                   GL_LINEAR); // GL_NEAREST, GL_LINEAR, etc.
-  // TODO: TEST your understanding: Try changing GL_LINEAR to GL_NEAREST on the
   // 4x4 checkerboard texture. What is happening? Also change the wrap modes to
   // GL_CLAMP_TO_EDGE and see what happens.
 
@@ -453,6 +445,9 @@ int main(int argc, char *argv[]) {
                          "outColor"); // Set output variable that gets displayed
                                       // on screen/framebuffer
   glLinkProgram(shaderProgram);       // Run the linker (after the compile step)
+  //
+  //// Get the location of the brightness uniform
+  GLint brightnessUniform = glGetUniformLocation(shaderProgram, "brightness");
 
   glUseProgram(
       shaderProgram); // Set the active shader (only one can be used at a time)
@@ -517,6 +512,20 @@ int main(int argc, char *argv[]) {
           fullscreen = !fullscreen;
           SDL_SetWindowFullscreen(window, fullscreen);
         }
+        if (event.key.key == SDLK_P) {
+          // WHAT DO I DO HERE
+          brightness += 0.1f;
+          if (brightness > 3.0f)
+            brightness = 3.0f;
+          printf("Brightness: %f\n", brightness);
+        }
+        if (event.key.key == SDLK_MINUS) {
+          // WHAT DO I DO HERE
+          brightness -= 0.1f;
+          if (brightness < 0.1f)
+            brightness = 0.1f;
+          printf("Brightness: %f\n", brightness);
+        }
         if (event.key.key == SDLK_R)
           r_keyPressed();
         break;
@@ -556,6 +565,8 @@ int main(int argc, char *argv[]) {
     glClearColor(0.6f, 0.6, 0.6f, 0.0f);
     glClear(GL_COLOR_BUFFER_BIT);
 
+    // Set the brightness uniform
+    glUniform1f(brightnessUniform, brightness);
     glDrawArrays(GL_TRIANGLE_STRIP, 0,
                  4); // Draw 4 vertices (2 triangles) to make up the rectangle
     // TODO: TEST your understanding: What shape do you expect to see if you
