@@ -56,33 +56,15 @@ void write_ppm(char *imgName, int width, int height, int bits,
   for (int i = 0; i < height; i++) {
     for (int j = 0; j < width; j++) {
       int idx = i * width * 4 + j * 4;
-      // printf("data: %d, max: %f, r: %d\n", data[idx + 0],
-      //        ((float)maximum / 255),
-      //        (int)(data[idx + 0] * ((float)maximum / 255)));
 
-      // float scale = (maximum / 255.0f);
-      // add 0.5 so we round instead of truncate
-      // r = (int)lround(data[idx + 0] * scale); // Red
-      // g = (int)lround(data[idx + 1] * scale); // Green
-      // b = (int)lround(data[idx + 2] * scale); // Blue
-      //
-      // TODO: IDK how this is different? 
       r = map_from_midbucket(data[idx + 0], maximum + 1);
       g = map_from_midbucket(data[idx + 1], maximum + 1);
       b = map_from_midbucket(data[idx + 2], maximum + 1);
-      // int new_r, new_g, new_b;
-      // new_r = (p.r >> shift);
-      // new_g = (p.g >> shift);
-      // new_b = (p.b >> shift);
-      //
-      // Pixel ret;
-      // ret.SetClamp(new_r*mult , new_g*mult , new_b*mult );
-      // return ret;
-      if (i == 0 && j < 10) {
-        printf("r: %f, g: %f, b: %f", data[idx + 0] * scale,
-               data[idx + 1] * scale, data[idx + 2] * scale);
-        printf("r: %d, g: %d, b: %d\n", r, g, b);
-      }
+      // if (i == 0 && j < 10) {
+      //   printf("r: %f, g: %f, b: %f", data[idx + 0] * scale,
+      //          data[idx + 1] * scale, data[idx + 2] * scale);
+      //   printf("r: %d, g: %d, b: %d\n", r, g, b);
+      // }
       a = data[idx + 3]; // Alpha
       ppmFile << r << " " << g << " " << b << " ";
     }
