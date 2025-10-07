@@ -126,7 +126,6 @@ uint8_t *read_ppm(char *imgName, int &width, int &height) {
   for (int i = 0; i < height; i++) {
     for (int j = 0; j < width; j++) {
       ppmFile >> r >> g >> b;
-      // we doin to much just shift the bits.. max bits = 8
       int idx = i * width * 4 + j * 4;
       img_data[idx] = map_to_midbucket(r, maximum + 1);
       img_data[idx + 1] = map_to_midbucket(g, maximum + 1);
