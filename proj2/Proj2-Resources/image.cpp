@@ -1,0 +1,376 @@
+// CSCI 5607 HW 2 - Image Conversion Instructor: S. J. Guy <sjguy@umn.edu>
+// In this assignment you will load and convert between various image formats.
+// Additionally, you will manipulate the stored image data by quantizing,
+// cropping, and suppressing channels
+
+#include "image.h"
+#include <cstdio>
+#include <float.h>
+#include <math.h>
+#include <stdlib.h>
+#include <string.h>
+
+#include <fstream>
+using namespace std;
+
+int map_to_midbucket(int value, int levels) {
+  return ((2 * value + 1) * 255 + levels) / (2 * levels);
+}
+// TODO - HW2: The current implementation of read_ppm() assumes the PPM file has
+// a maximum value of 255 (ie., an 8-bit PPM) ...
+// TODO - HW2: ... you need to adjust the function to support PPM files with a
+// max value of 1, 3, 7, 15, 31, 63, 127, and 255 (why these numbers?)
+uint8_t *read_ppm(char *imgName, int &width, int &height) {
+  // Open the texture image file
+  ifstream ppmFile;
+  ppmFile.open(imgName);
+  if (!ppmFile) {
+    printf("ERROR: Image file '%s' not found.\n", imgName);
+    exit(1);
+  }
+
+  // Check that this is an ASCII PPM (first line is P3)
+  string PPM_style;
+  ppmFile >> PPM_style; // Read the first line of the header
+  if (PPM_style != "P3") {
+    printf("ERROR: PPM Type number is %s. Not an ASCII (P3) PPM file!\n",
+           PPM_style.c_str());
+    exit(1);
+  }
+
+  // Read in the texture width and height
+  ppmFile >> width >> height;
+  unsigned char *img_data = new unsigned char[4 * width * height];
+
+  // Check that the 3rd line is 255 (ie., this is an 8 bit/pixel PPM)
+  int maximum;
+  ppmFile >> maximum;
+  int bits = log2(maximum + 1);
+  // TODO - HW2: Remove this check below, instead make the function for for
+  // maximum values besides 255
+  // if (maximum != 255) {
+  //   printf("ERROR: We assume Maximum size is 255, not (%d)\n", maximum);
+  //   printf("TODO: This error means you didn't finish your HW yet!\n");
+  //   exit(1);
+  // }
+
+  // TODO - HW2: The values read from the file might not be 8-bits (ie, a
+  // maximum values besides 255)
+  // TODO - HW2: However img_data stores all values as 8-bit integers.
+  // TODO - HW2: When you read the values into img_data scale the values up to
+  // be 8 bits
+  // TODO - HW2: For example, the value 1 in a 1 bit PPM should become 255 ...
+  // TODO - HW2: Likewise, the value 1 in a 2 bit PPM should become 127 (or
+  // 128).
+  int r, g, b;
+  for (int i = 0; i < height; i++) {
+    for (int j = 0; j < width; j++) {
+      ppmFile >> r >> g >> b;
+      int idx = i * width * 4 + j * 4;
+      img_data[idx] = map_to_midbucket(r, maximum + 1);
+      img_data[idx + 1] = map_to_midbucket(g, maximum + 1);
+      img_data[idx + 2] = map_to_midbucket(b, maximum + 1);
+      img_data[idx + 3] = 255; // Alpha
+    }
+  }
+
+  return img_data;
+}
+
+int map_from_midbucket(int value, int levels) { return (value * levels) / 256; }
+void write_ppm(char *imgName, int width, int height, int bits,
+               const uint8_t *data) {
+  // Open the texture image file
+  ofstream ppmFile;
+  ppmFile.open(imgName);
+  if (!ppmFile) {
+    printf("ERROR: Could not create file '%s'\n", imgName);
+    exit(1);
+  }
+
+  // Set this as an ASCII PPM (first line is P3)
+  string PPM_style = "P3\n";
+  ppmFile << PPM_style; // Read the first line of the header
+
+  // Write out the texture width and height
+  ppmFile << width << " " << height << "\n";
+
+  // Set's the 3rd line to 255 (ie., assumes this is an 8 bit/pixel PPM)
+  // TODO - HW2: Set the maximum values based on the value of the variable
+  // 'bits'
+  int maximum = (1 << bits) - 1;
+  ppmFile << maximum << "\n";
+
+  // TODO - HW2: The values in data are all 8 bits, you must convert down to
+  // whatever the variable bits is when writing the file
+  //
+  float scale = maximum / 255.0f;
+
+  int r, g, b, a;
+  for (int i = 0; i < height; i++) {
+    for (int j = 0; j < width; j++) {
+      int idx = i * width * 4 + j * 4;
+
+      r = map_from_midbucket(data[idx + 0], maximum + 1);
+      g = map_from_midbucket(data[idx + 1], maximum + 1);
+      b = map_from_midbucket(data[idx + 2], maximum + 1);
+      // if (i == 0 && j < 10) {
+      //   printf("r: %f, g: %f, b: %f", data[idx + 0] * scale,
+      //          data[idx + 1] * scale, data[idx + 2] * scale);
+      //   printf("r: %d, g: %d, b: %d\n", r, g, b);
+      // }
+      a = data[idx + 3]; // Alpha
+      ppmFile << r << " " << g << " " << b << " ";
+    }
+  }
+
+  ppmFile.close();
+}
+
+/**
+ * Image
+ **/
+Image::Image(int width_, int height_) {
+
+  assert(width_ > 0);
+  assert(height_ > 0);
+
+  width = width_;
+  height = height_;
+  num_pixels = width * height;
+  sampling_method = IMAGE_SAMPLING_POINT;
+
+  data.raw = new uint8_t[num_pixels * 4];
+  int b = 0; // which byte to write to
+  for (int j = 0; j < height; j++) {
+    for (int i = 0; i < width; i++) {
+      data.raw[b++] = 0;
+      data.raw[b++] = 0;
+      data.raw[b++] = 0;
+      data.raw[b++] = 0;
+    }
+  }
+
+  assert(data.raw != NULL);
+}
+
+Image::Image(const Image &src) {
+  width = src.width;
+  height = src.height;
+  num_pixels = width * height;
+  sampling_method = IMAGE_SAMPLING_POINT;
+
+  data.raw = new uint8_t[num_pixels * sizeof(Pixel)];
+
+  memcpy(data.raw, src.data.raw, num_pixels * sizeof(Pixel));
+}
+
+Image::Image(char *fname) {
+
+  int numComponents; //(e.g., Y, YA, RGB, or RGBA)
+
+  // Load the pixels with STB Image Lib
+  //
+  int lastc = strlen(fname);
+  uint8_t *loadedPixels;
+  if (string(fname + lastc - 3) == "ppm") {
+    loadedPixels = read_ppm(fname, width, height);
+  } else {
+    int numComponents; //(e.g., Y, YA, RGB, or RGBA)
+    loadedPixels = stbi_load(fname, &width, &height, &numComponents, 4);
+  }
+  if (loadedPixels == NULL) {
+    printf("Error loading image: %s", fname);
+    exit(-1);
+  }
+
+  // Set image member variables
+  num_pixels = width * height;
+  sampling_method = IMAGE_SAMPLING_POINT;
+
+  // Copy the loaded pixels into the image data structure
+  data.raw = new uint8_t[num_pixels * sizeof(Pixel)];
+  memcpy(data.raw, loadedPixels, num_pixels * sizeof(Pixel));
+  free(loadedPixels);
+}
+
+Image::~Image() {
+  delete[] data.raw;
+  data.raw = NULL;
+}
+
+void Image::Write(char *fname) {
+
+  int lastc = strlen(fname);
+
+  switch (fname[lastc - 1]) {
+  case 'm': // ppm
+    write_ppm(fname, width, height, export_depth, data.raw);
+    break;
+  case 'g': // jpeg (or jpg) or png
+    if (fname[lastc - 2] == 'p' || fname[lastc - 2] == 'e')  // jpeg or jpg
+      stbi_write_jpg(fname, width, height, 4, data.raw, 95); // 95% jpeg quality
+    else                                                     // png
+      stbi_write_png(fname, width, height, 4, data.raw, width * 4);
+    break;
+  case 'a': // tga (targa)
+    stbi_write_tga(fname, width, height, 4, data.raw);
+    break;
+  case 'p': // bmp
+  default:
+    stbi_write_bmp(fname, width, height, 4, data.raw);
+  }
+}
+
+void Image::Brighten(double factor) {
+  int x, y;
+  for (x = 0; x < Width(); x++) {
+    for (y = 0; y < Height(); y++) {
+      Pixel p = GetPixel(x, y);
+      Pixel scaled_p = p * factor;
+      GetPixel(x, y) = scaled_p;
+    }
+  }
+}
+
+void Image::ExtractChannel(int channel) {
+  int x, y;
+  for (x = 0; x < Width(); x++) {
+    for (y = 0; y < Height(); y++) {
+      Pixel p = GetPixel(x, y);
+      switch (channel) {
+      case 0:
+        p.g = 0;
+        p.b = 0;
+        break;
+      case 1:
+        p.r = 0;
+        p.b = 0;
+        break;
+      case 2:
+        p.r = 0;
+        p.g = 0;
+        break;
+      }
+      GetPixel(x, y) = p;
+    }
+  }
+}
+
+void Image::Quantize(int nbits) {
+  for (int x = 0; x < Width(); x++) {
+    for (int y = 0; y < Height(); y++) {
+      Pixel p = GetPixel(x, y);
+      Pixel new_p = PixelQuant(p, nbits);
+      GetPixel(x, y) = new_p;
+    }
+  }
+}
+
+Image *Image::Crop(int x, int y, int w, int h) {
+  Image *new_img = new Image(w, h);
+  for (int i = x; i < x + w; i++) {
+    for (int j = y; j < y + h; j++) {
+      Pixel p = GetPixel(i, j);
+      new_img->SetPixel(i - x, j - y, p);
+    }
+  }
+  return new_img;
+}
+
+void Image::AddNoise(double factor) { /* WORK HERE */ }
+
+void Image::ChangeContrast(double factor) {
+  int x, y;
+  double avg = 0.0f;
+  for (x = 0; x < Width(); x++) {
+    for (y = 0; y < Height(); y++) {
+      Pixel p = GetPixel(x, y);
+      avg += 0.3 * p.r + 0.59*p.g + 0.11*p.b;
+    }
+  }
+  avg /= num_pixels;
+
+  for (x = 0; x < Width(); x++) {
+    for (y = 0; y < Height(); y++) {
+      Pixel p = GetPixel(x, y);
+      double l = 0.3 * p.r + 0.59*p.g + 0.11*p.b;
+      double scale = (l - avg)/ 255 * factor;
+      GetPixel(x, y) = p + p*scale;
+    }
+  }
+}
+
+void Image::ChangeSaturation(double factor) { /* WORK HERE */ }
+
+// For full credit, check that your dithers aren't making the pictures
+// systematically brighter or darker
+void Image::RandomDither(int nbits) { /* WORK HERE */ }
+
+// This bayer method gives the quantization thresholds for an ordered dither.
+// This is a 4x4 dither pattern, assumes the values are quantized to 16 levels.
+// You can either expand this to a larger bayer pattern. Or (more likely), scale
+// the threshold based on the target quantization levels.
+static int Bayer4[4][4] = {
+    {15, 7, 13, 5}, {3, 11, 1, 9}, {12, 4, 14, 6}, {0, 8, 2, 10}};
+
+void Image::OrderedDither(int nbits) { /* WORK HERE  (Extra Credit) */ }
+
+/* Error-diffusion parameters */
+const double ALPHA = 7.0 / 16.0, BETA = 3.0 / 16.0, GAMMA = 5.0 / 16.0,
+             DELTA = 1.0 / 16.0;
+
+void Image::FloydSteinbergDither(int nbits) { /* WORK HERE */ }
+
+// Gaussian blur with size nxn filter
+void Image::Blur(int n) {
+  // float r, g, b; //You'll get better results converting everything to floats,
+  // then converting back to bytes (less quantization error) Image* img_copy =
+  // new Image(*this); //This is will copying the image, so you can read the
+  // original values for filtering
+  //  ... don't forget to delete the copy!
+  /* WORK HERE */
+}
+
+void Image::Sharpen(int n) { /* WORK HERE */ }
+
+void Image::EdgeDetect() { /* WORK HERE */ }
+
+Image *Image::Scale(double sx, double sy) {
+  // float r = max(1/sx, 1/sy);
+  // for (int x = 0; x < xmax; x++){
+  //   for (int y = 0; y < ymax; y++){
+  //     float u = x/sx;
+  //     float v = y/sy;
+  //     dest(x,y) = resample_src(u,v,r);
+  //   }
+  // }
+  return NULL;
+}
+
+Image *Image::Rotate(double angle) {
+  // float r = max(1/sx, 1/sy);
+  // for (int x = 0; x < xmax; x++){
+  //   for (int y = 0; y < ymax; y++){
+  //     float u = x*cos(angle) - y*sin(angle);
+  //     float v = x*sin(angle) + y*cos(angle);
+  //     dest(x,y) = resample_src(u,v,r);
+  //   }
+  // }
+  return NULL;
+}
+
+void Image::Fun() { /* WORK HERE */ }
+
+/**
+ * Image Sample
+ **/
+void Image::SetSamplingMethod(int method) {
+  assert((method >= 0) && (method < IMAGE_N_SAMPLING_METHODS));
+  sampling_method = method;
+}
+
+Pixel Image::Sample(double u, double v) {
+  /* WORK HERE */
+  return Pixel();
+}
