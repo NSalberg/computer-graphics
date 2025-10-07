@@ -280,6 +280,8 @@ Image *Image::Crop(int x, int y, int w, int h) {
 
 void Image::AddNoise(double factor) { /* WORK HERE */ }
 
+// thanks to https://www.dfstudios.co.uk/articles/programming/image-programming-algorithms/image-processing-algorithms-part-5-contrast-adjustment/
+//
 void Image::ChangeContrast(double factor) {
   int x, y;
   double avg = 0.0f;
@@ -290,13 +292,23 @@ void Image::ChangeContrast(double factor) {
     }
   }
   avg /= num_pixels;
+  printf("avg: %f\n", avg);
+  printf("avg: %d\n", (int)avg);
+  double f = (259*(factor + 255)) / (255 * (259 - factor));
+  printf("f: %f\n", f);
+
 
   for (x = 0; x < Width(); x++) {
     for (y = 0; y < Height(); y++) {
       Pixel p = GetPixel(x, y);
-      double l = 0.3 * p.r + 0.59*p.g + 0.11*p.b;
-      double scale = (l - avg)/ 255 * factor;
-      GetPixel(x, y) = p + p*scale;
+      Pixel new_pixel = Pixel();
+      new_pixel.SetClamp(
+        (int)(avg + f * (p.r - avg)),
+        (int)(avg + f * (p.g - avg)),
+        (int)(avg + f * (p.b - avg))
+      );
+      printf("scale %d, %d %d\n", new_pixel.r, new_pixel.g, new_pixel.b);
+      GetPixel(x, y) = new_pixel;
     }
   }
 }
