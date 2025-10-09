@@ -314,7 +314,6 @@ void Image::ChangeContrast(double factor) {
 }
 
 void Image::ChangeSaturation(double factor) { 
-
   double f = (259*(factor + 255)) / (255 * (259 - factor));
   int x, y;
   for (x = 0; x < Width(); x++) {
@@ -327,7 +326,6 @@ void Image::ChangeSaturation(double factor) {
         (int)(grayscale + f * (p.g - grayscale)),
         (int)(grayscale + f * (p.b - grayscale))
       );
-      printf("scale %d, %d %d\n", new_pixel.r, new_pixel.g, new_pixel.b);
       GetPixel(x, y) = new_pixel;
     }
   }
