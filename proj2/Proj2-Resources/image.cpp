@@ -313,7 +313,25 @@ void Image::ChangeContrast(double factor) {
   }
 }
 
-void Image::ChangeSaturation(double factor) { /* WORK HERE */ }
+void Image::ChangeSaturation(double factor) { 
+
+  double f = (259*(factor + 255)) / (255 * (259 - factor));
+  int x, y;
+  for (x = 0; x < Width(); x++) {
+    for (y = 0; y < Height(); y++) {
+      Pixel p = GetPixel(x, y);
+      Pixel new_pixel = Pixel();
+      float grayscale = 0.3 * p.r + 0.59*p.g + 0.11*p.b;
+      new_pixel.SetClamp(
+        (int)(grayscale + f * (p.r - grayscale)),
+        (int)(grayscale + f * (p.g - grayscale)),
+        (int)(grayscale + f * (p.b - grayscale))
+      );
+      printf("scale %d, %d %d\n", new_pixel.r, new_pixel.g, new_pixel.b);
+      GetPixel(x, y) = new_pixel;
+    }
+  }
+ }
 
 // For full credit, check that your dithers aren't making the pictures
 // systematically brighter or darker
