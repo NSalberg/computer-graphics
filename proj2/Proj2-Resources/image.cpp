@@ -377,7 +377,6 @@ void Convolve(Image *src, Image *dst, std::vector<std::vector<double>> kernel,
       // Loop over kernel
       for (int i = -n; i <= n; i++) {
         for (int j = -n; j <= n; j++) {
-          // this sets the indices outside the image to the edge's value
           int xx = std::min(std::max(x + i, 0), src->Width() - 1);
           int yy = std::min(std::max(y + j, 0), src->Height() - 1);
 
@@ -434,12 +433,12 @@ void Image::EdgeDetect() {
   int size = 3;
   std::vector<std::vector<double>> kernel(size, std::vector<double>(size));
 
-  for (int i = 0; i < size; i++) {
-    for (int j = 0; j < size; j++) {
+  for (int i = -n; i <= n; i++) {
+    for (int j = -n; j <= n; j++) {
       if (i == 0 and j == 0) {
-        kernel[i][j] = 8;
-      }else{
-        kernel[i][j] = -1;
+        kernel[i + n][j + n] = -8;
+      }else {
+        kernel[i + n][j + n] = -1;
       }
     }
   }
