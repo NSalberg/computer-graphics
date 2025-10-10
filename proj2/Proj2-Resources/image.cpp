@@ -4,9 +4,11 @@
 // cropping, and suppressing channels
 
 #include "image.h"
+#include "pixel.h"
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <cstdlib>
 #include <float.h>
 #include <math.h>
 #include <random>
@@ -388,7 +390,9 @@ void Convolve(Image *src, Image *dst, std::vector<std::vector<double>> kernel,
         }
       }
 
-      dst->SetPixel(x, y, Pixel((int)r, (int)g, (int)b));
+      Pixel new_p = Pixel();
+      new_p.SetClamp(r, g, b);
+      dst->SetPixel(x, y, new_p);
     }
   }
 }
@@ -413,9 +417,11 @@ void Image::Blur(int n) {
   }
 
   // Normalize
+  double t = 0;
   for (int i = 0; i < size; i++) {
     for (int j = 0; j < size; j++) {
       kernel[i][j] /= sum;
+      t += kernel[i][j];
     }
   }
 
@@ -423,12 +429,53 @@ void Image::Blur(int n) {
   delete img_copy;
 }
 
-void Image::Sharpen(int n) { /* WORK HERE */ }
+void Image::Sharpen(int n) {
+  // Image *img_copy = new Image(*this);
+  // int m = 1;
+  // int size = 3;
+  // std::vector<std::vector<double>> kernel(size, std::vector<double>(size));
+  //
+  // for (int i = -m; i <= m; i++) {
+  //   for (int j = -m; j <= m; j++) {
+  //     if (i == 0 and j == 0) {
+  //       kernel[i + m][j + m] = 5;
+  //     } else if (abs(j) + abs(i) == 1) {
+  //       kernel[i + m][j + m] = -1;
+  //     } else {
+  //       kernel[i + m][j + m] = 0;
+  //     }
+  //   }
+  // }
+  //
+  // Convolve(img_copy, this, kernel, 0);
+  // delete img_copy;
+  Image *blurred_image = new Image(*this);
+  blurred_image->Blur(2);
+  for (int x = 0; x < this->Width(); x++) {
+    for (int y = 0; y < this->Height(); y++) {
+      Pixel orig_p = this->GetPixel(x, y);
+      Pixel blur_p = blurred_image->GetPixel(x, y);
+      double f = 1.5f;
+      double r = orig_p.r - f * (orig_p.r - blur_p.r);
+      double g = orig_p.g - f * (orig_p.g - blur_p.g);
+      double b = orig_p.b - f * (orig_p.b - blur_p.b);
+      if (r < 0 and g < 0 and b < 0) {
+        printf("orig, blur: %d %d ", orig_p.r, blur_p.r);
+        printf("rgb: %d %d %f %f %f\n", x, y, r, g, b);
+      }
+
+      Pixel new_p = Pixel();
+      new_p.SetClamp(r, g, b);
+      this->SetPixel(x, y, new_p);
+
+      // this->SetPixel(x, y, Pixel((int)r, (int)g, (int)b));
+    }
+  }
+  delete blurred_image;
+}
 
 void Image::EdgeDetect() {
-  Image *img_copy =
-      new Image(*this); // This is will copying the image, so you can read the
-                        // original values for filtering
+  Image *img_copy = new Image(*this);
   int n = 1;
   int size = 3;
   std::vector<std::vector<double>> kernel(size, std::vector<double>(size));
@@ -436,8 +483,8 @@ void Image::EdgeDetect() {
   for (int i = -n; i <= n; i++) {
     for (int j = -n; j <= n; j++) {
       if (i == 0 and j == 0) {
-        kernel[i + n][j + n] = -8;
-      }else {
+        kernel[i + n][j + n] = 8;
+      } else {
         kernel[i + n][j + n] = -1;
       }
     }
@@ -480,8 +527,15 @@ void Image::SetSamplingMethod(int method) {
   assert((method >= 0) && (method < IMAGE_N_SAMPLING_METHODS));
   sampling_method = method;
 }
-
 Pixel Image::Sample(double u, double v) {
-  /* WORK HERE */
-  return Pixel();
+  if (sampling_method == IMAGE_SAMPLING_POINT) // Nearest Neighbor
+    return GetPixel((int)u * width, (int)v * height);
+  else if (sampling_method == IMAGE_SAMPLING_BILINEAR) { // Bilinear
+    // Get 4 nearest pixels
+    // return the bilinear average
+  } else if (sampling_method == IMAGE_SAMPLING_GAUSSIAN) { // Gaussian
+    // Get all nearby pixels
+    // return the gaussian-weighted average
+  }
+  return Pixel(); // we should never be here
 }
