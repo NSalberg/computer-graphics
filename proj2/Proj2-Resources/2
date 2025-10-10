@@ -365,11 +365,10 @@ const double ALPHA = 7.0 / 16.0, BETA = 3.0 / 16.0, GAMMA = 5.0 / 16.0,
 
 void Image::FloydSteinbergDither(int nbits) { /* WORK HERE */ }
 
-/* modifies the dst with the kernel*/
-void Convolve(Image *src, Image *dst, std::vector<std::vector<double>> kernel,
-              int edge_pattern) {
-  int n = kernel.size() / 2;
-  // Loop over
+void Convolve(Image* src, Image* dst, std::vector<std::vector<double>> kernel, int edge_pattern) {
+
+  int n = (int)ceil(kernel.size() / 2.0f);
+  // Loop over 
   for (int x = 0; x < src->Width(); x++) {
     for (int y = 0; y < src->Height(); y++) {
       double r = 0, g = 0, b = 0;
@@ -377,7 +376,6 @@ void Convolve(Image *src, Image *dst, std::vector<std::vector<double>> kernel,
       // Loop over kernel
       for (int i = -n; i <= n; i++) {
         for (int j = -n; j <= n; j++) {
-          // this sets the indices outside the image to the edge's value
           int xx = std::min(std::max(x + i, 0), src->Width() - 1);
           int yy = std::min(std::max(y + j, 0), src->Height() - 1);
 
@@ -396,6 +394,8 @@ void Convolve(Image *src, Image *dst, std::vector<std::vector<double>> kernel,
 
 // Gaussian blur with size nxn filter
 void Image::Blur(int n) {
+  float r, g, b; // You'll get better results converting everything to floats,
+                 // then converting back to bytes (less quantization error)
   Image *img_copy =
       new Image(*this); // This is will copying the image, so you can read the
                         // original values for filtering
@@ -420,33 +420,35 @@ void Image::Blur(int n) {
     }
   }
 
-  Convolve(img_copy, this, kernel, 0);
+  Convolve(img_copy, &this, kernel, 0);
+  for (int x = 0; x < Width(); x++) {
+    for (int y = 0; y < Height(); y++) {
+      double r = 0, g = 0, b = 0;
+
+      for (int i = -n; i <= n; i++) {
+        for (int j = -n; j <= n; j++) {
+          int xx = std::min(std::max(x + i, 0), Width() - 1);
+          int yy = std::min(std::max(y + j, 0), Height() - 1);
+
+          Pixel p = img_copy->GetPixel(xx, yy);
+          double weight = kernel[i + n][j + n];
+          r += weight * p.r;
+          g += weight * p.g;
+          b += weight * p.b;
+        }
+      }
+
+      SetPixel(x, y, Pixel((int)r, (int)g, (int)b));
+    }
+  }
   delete img_copy;
+  //  ... don't forget to delete the copy!
+  /* WORK HERE */
 }
 
 void Image::Sharpen(int n) { /* WORK HERE */ }
 
-void Image::EdgeDetect() {
-  Image *img_copy =
-      new Image(*this); // This is will copying the image, so you can read the
-                        // original values for filtering
-  int n = 1;
-  int size = 3;
-  std::vector<std::vector<double>> kernel(size, std::vector<double>(size));
-
-  for (int i = 0; i < size; i++) {
-    for (int j = 0; j < size; j++) {
-      if (i == 0 and j == 0) {
-        kernel[i][j] = 8;
-      }else{
-        kernel[i][j] = -1;
-      }
-    }
-  }
-
-  Convolve(img_copy, this, kernel, 0);
-  delete img_copy;
-}
+void Image::EdgeDetect() { /* WORK HERE */ }
 
 Image *Image::Scale(double sx, double sy) {
   // float r = max(1/sx, 1/sy);
