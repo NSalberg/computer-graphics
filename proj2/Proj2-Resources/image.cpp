@@ -430,6 +430,25 @@ void Image::Blur(int n) {
 }
 
 void Image::Sharpen(int n) {
+  Image *blurred_image = new Image(*this);
+  blurred_image->Blur(2);
+  for (int x = 0; x < this->Width(); x++) {
+    for (int y = 0; y < this->Height(); y++) {
+      Pixel orig_p = this->GetPixel(x, y);
+      Pixel blur_p = blurred_image->GetPixel(x, y);
+      double f = n / 10.0f;
+      double r = orig_p.r + f * (orig_p.r - blur_p.r);
+      double g = orig_p.g + f * (orig_p.g - blur_p.g);
+      double b = orig_p.b + f * (orig_p.b - blur_p.b);
+
+      Pixel new_p = Pixel();
+      new_p.SetClamp(r, g, b);
+      this->SetPixel(x, y, new_p);
+
+    }
+  }
+  delete blurred_image;
+}
   // Image *img_copy = new Image(*this);
   // int m = 1;
   // int size = 3;
@@ -449,30 +468,6 @@ void Image::Sharpen(int n) {
   //
   // Convolve(img_copy, this, kernel, 0);
   // delete img_copy;
-  Image *blurred_image = new Image(*this);
-  blurred_image->Blur(2);
-  for (int x = 0; x < this->Width(); x++) {
-    for (int y = 0; y < this->Height(); y++) {
-      Pixel orig_p = this->GetPixel(x, y);
-      Pixel blur_p = blurred_image->GetPixel(x, y);
-      double f = 1.5f;
-      double r = orig_p.r - f * (orig_p.r - blur_p.r);
-      double g = orig_p.g - f * (orig_p.g - blur_p.g);
-      double b = orig_p.b - f * (orig_p.b - blur_p.b);
-      if (r < 0 and g < 0 and b < 0) {
-        printf("orig, blur: %d %d ", orig_p.r, blur_p.r);
-        printf("rgb: %d %d %f %f %f\n", x, y, r, g, b);
-      }
-
-      Pixel new_p = Pixel();
-      new_p.SetClamp(r, g, b);
-      this->SetPixel(x, y, new_p);
-
-      // this->SetPixel(x, y, Pixel((int)r, (int)g, (int)b));
-    }
-  }
-  delete blurred_image;
-}
 
 void Image::EdgeDetect() {
   Image *img_copy = new Image(*this);
