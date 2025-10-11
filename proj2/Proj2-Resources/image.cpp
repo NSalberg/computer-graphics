@@ -628,14 +628,23 @@ void Image::EdgeDetect() {
 Image *Image::Scale(double sx, double sy) {
   Image *img_copy = new Image(*this);
 
+  float cx = Width() / 2.0f;
+  float cy = Height() / 2.0f;
+
   for (int x = 0; x < Width(); x++) {
     for (int y = 0; y < Height(); y++) {
-      float u = x / sx;
-      float v = y / sy;
+      float dx = x - cx;
+      float dy = y - cy;
+
+      float u = dx / sx;
+      float v = dy / sy;
+
+      u += cx;
+      v += cy;
       img_copy->GetPixel(x, y) = Sample(u, v);
     }
   }
-  return NULL;
+  return img_copy;
 }
 
 Image *Image::Rotate(double angle) {
@@ -678,10 +687,14 @@ void Image::SetSamplingMethod(int method) {
 }
 
 Pixel GaussianSample(int x, int y, Image &image) {
-  int n = 0;
+  int n = 1;
   int size = 2 * n + 1;
   double sigma = n / 2.0;
   double sum = 0.0;
+
+  if (not image.ValidCoord(x, y)){
+    return Pixel();
+  }
 
   std::vector<std::vector<double>> kernel(size, std::vector<double>(size));
   for (int i = -n; i <= n; i++) {
@@ -743,7 +756,7 @@ Pixel Image::Sample(double u, double v) {
   } else if (sampling_method == IMAGE_SAMPLING_BILINEAR) { // Bilinear
   } else if (sampling_method == IMAGE_SAMPLING_GAUSSIAN) { // Gaussian
     // return the gaussian-weighted average
-    return GaussianSample((int)u * width, (int)v * height, *this);
+    return GaussianSample(u, v, *this);
   }
   return Pixel(); // we should never be here
 }
