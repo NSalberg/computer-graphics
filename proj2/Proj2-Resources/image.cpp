@@ -354,11 +354,11 @@ void Image::ChangeSaturation(double factor) {
 void Image::RandomDither(int nbits) {
   std::random_device dev;
   std::mt19937 rng(dev());
-  std::uniform_real_distribution<double> dist(-10.0f, 10.0f);
 
   this->export_depth = nbits;
   int maximum = (1 << nbits) - 1;
-
+  double step = 255.0 / maximum;
+  std::uniform_real_distribution<double> dist(-step/2.0f, step/2.0f);
   for (int x = 0; x < Width(); x++) {
     for (int y = 0; y < Height(); y++) {
       Pixel p = GetPixel(x, y);
@@ -366,11 +366,18 @@ void Image::RandomDither(int nbits) {
       int r = p.r + dist(rng) + 0.5;
       int g = p.g + dist(rng) + 0.5;
       int b = p.b + dist(rng) + 0.5;
-      map_from_midbucket(r, maximum);
+
+      double level_r = round((r * maximum) / 255.0f);
+      double level_g = round((g * maximum) / 255.0f);
+      double level_b = round((b * maximum) / 255.0f);
+
+      // Pixel new_pixel = Pixel();
+      // new_pixel.SetClamp(r, g, b);
+      // GetPixel(x, y) = new_pixel;
 
       Pixel new_pixel = Pixel();
-      new_pixel.SetClamp(r, g, b);
-      GetPixel(x, y) = new_pixel;
+      new_pixel.SetClamp(level_r * step, level_g * step, level_b * step);
+      this->SetPixel(x, y, new_pixel);
     }
   }
 }
@@ -476,7 +483,8 @@ void Image::FloydSteinbergDither(int nbits) {
         Pixel new_pixel = Pixel();
         new_pixel.SetClamp(level_r * step, level_g * step, level_b * step);
         // printf("pixel: %d %d %d : ", new_pixel.r, new_pixel.g, new_pixel.b);
-        // printf("xy: %d %d rgb: %f %f %f \n", x, y, level_r, level_g, level_b);
+        // printf("xy: %d %d rgb: %f %f %f \n", x, y, level_r, level_g,
+        // level_b);
         this->SetPixel(x, y, new_pixel);
       }
     } else {
@@ -497,7 +505,8 @@ void Image::FloydSteinbergDither(int nbits) {
         Pixel new_pixel = Pixel();
         new_pixel.SetClamp(level_r * step, level_g * step, level_b * step);
         // printf("pixel: %d %d %d : ", new_pixel.r, new_pixel.g, new_pixel.b);
-        // printf("xy: %d %d rgb: %f %f %f \n", x, y, level_r, level_g, level_b);
+        // printf("xy: %d %d rgb: %f %f %f \n", x, y, level_r, level_g,
+        // level_b);
         this->SetPixel(x, y, new_pixel);
       }
     }
@@ -687,7 +696,7 @@ void Image::SetSamplingMethod(int method) {
 }
 
 Pixel GaussianSample(int x, int y, Image &image) {
-  int n = 3;
+  int n = 2;
   int size = 2 * n + 1;
   double sigma = n / 2.0;
   double sum = 0.0;
