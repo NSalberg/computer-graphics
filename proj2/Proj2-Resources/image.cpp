@@ -315,10 +315,10 @@ void Image::ChangeContrast(double factor) {
     }
   }
   avg /= num_pixels;
-  printf("avg: %f\n", avg);
-  printf("avg: %d\n", (int)avg);
+  // printf("avg: %f\n", avg);
+  // printf("avg: %d\n", (int)avg);
   double f = (259 * (factor + 255)) / (255 * (259 - factor));
-  printf("f: %f\n", f);
+  // printf("f: %f\n", f);
 
   for (x = 0; x < Width(); x++) {
     for (y = 0; y < Height(); y++) {
@@ -327,7 +327,7 @@ void Image::ChangeContrast(double factor) {
       new_pixel.SetClamp((int)(avg + f * (p.r - avg)),
                          (int)(avg + f * (p.g - avg)),
                          (int)(avg + f * (p.b - avg)));
-      printf("scale %d, %d %d\n", new_pixel.r, new_pixel.g, new_pixel.b);
+      // printf("scale %d, %d %d\n", new_pixel.r, new_pixel.g, new_pixel.b);
       GetPixel(x, y) = new_pixel;
     }
   }
@@ -475,8 +475,8 @@ void Image::FloydSteinbergDither(int nbits) {
 
         Pixel new_pixel = Pixel();
         new_pixel.SetClamp(level_r * step, level_g * step, level_b * step);
-        printf("pixel: %d %d %d : ", new_pixel.r, new_pixel.g, new_pixel.b);
-        printf("xy: %d %d rgb: %f %f %f \n", x, y, level_r, level_g, level_b);
+        // printf("pixel: %d %d %d : ", new_pixel.r, new_pixel.g, new_pixel.b);
+        // printf("xy: %d %d rgb: %f %f %f \n", x, y, level_r, level_g, level_b);
         this->SetPixel(x, y, new_pixel);
       }
     } else {
@@ -496,8 +496,8 @@ void Image::FloydSteinbergDither(int nbits) {
 
         Pixel new_pixel = Pixel();
         new_pixel.SetClamp(level_r * step, level_g * step, level_b * step);
-        printf("pixel: %d %d %d : ", new_pixel.r, new_pixel.g, new_pixel.b);
-        printf("xy: %d %d rgb: %f %f %f \n", x, y, level_r, level_g, level_b);
+        // printf("pixel: %d %d %d : ", new_pixel.r, new_pixel.g, new_pixel.b);
+        // printf("xy: %d %d rgb: %f %f %f \n", x, y, level_r, level_g, level_b);
         this->SetPixel(x, y, new_pixel);
       }
     }
@@ -762,6 +762,8 @@ Pixel Image::Sample(double u, double v) {
 
     float fx = u - x0; // Fractional part in x
     float fy = v - y0; // Fractional part in y
+    //
+    static int count;
 
     // Check bounds and get the 4 neighboring pixels
     if (x0 < 0 || x1 >= Width() || y0 < 0 || y1 >= Height()) {
