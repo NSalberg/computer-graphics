@@ -83,6 +83,7 @@ uint8_t *read_ppm(char *imgName, int &width, int &height) {
 }
 
 int map_from_midbucket(int value, int levels) { return (value * levels) / 256; }
+
 void write_ppm(char *imgName, int width, int height, int bits,
                const uint8_t *data) {
   // Open the texture image file
@@ -350,8 +351,29 @@ void Image::ChangeSaturation(double factor) {
 
 // For full credit, check that your dithers aren't making the pictures
 // systematically brighter or darker
-void Image::RandomDither(int nbits) { /* WORK HERE */ }
+void Image::RandomDither(int nbits) {
+  std::random_device dev;
+  std::mt19937 rng(dev());
+  std::uniform_real_distribution<double> dist(-10.0f, 10.0f);
 
+  this->export_depth = nbits;
+  int maximum = (1 << nbits) - 1;
+
+  for (int x = 0; x < Width(); x++) {
+    for (int y = 0; y < Height(); y++) {
+      Pixel p = GetPixel(x, y);
+
+      int r = p.r + dist(rng) + 0.5;
+      int g = p.g + dist(rng) + 0.5;
+      int b = p.b + dist(rng) + 0.5;
+      map_from_midbucket(r, maximum);
+
+      Pixel new_pixel = Pixel();
+      new_pixel.SetClamp(r, g, b);
+      GetPixel(x, y) = new_pixel;
+    }
+  }
+}
 // This bayer method gives the quantization thresholds for an ordered dither.
 // This is a 4x4 dither pattern, assumes the values are quantized to 16 levels.
 // You can either expand this to a larger bayer pattern. Or (more likely), scale
@@ -365,7 +387,103 @@ void Image::OrderedDither(int nbits) { /* WORK HERE  (Extra Credit) */ }
 const double ALPHA = 7.0 / 16.0, BETA = 3.0 / 16.0, GAMMA = 5.0 / 16.0,
              DELTA = 1.0 / 16.0;
 
-void Image::FloydSteinbergDither(int nbits) { /* WORK HERE */ }
+struct f_pix {
+  double r;
+  double g;
+  double b;
+
+  f_pix operator+(const f_pix &other) const {
+    return f_pix{r + other.r, g + other.g, b + other.b};
+  }
+
+  f_pix operator*(double scalar) const {
+    return f_pix{r * scalar, g * scalar, b * scalar};
+  }
+  void operator+=(const f_pix &other) {
+    r += other.r;
+    g += other.g;
+    b += other.b;
+  }
+};
+
+void propogate_error(int x, int y, f_pix err,
+                     std::vector<std::vector<f_pix>> &image, bool going_right) {
+  if (x + 1 < image[0].size()) {
+    image[y][x + 1] += err * (7.0f / 16.0f);
+
+    if (y + 1 < image.size()) {
+      image[y + 1][x + 1] += err * (3.0f / 16.0f);
+    }
+
+  }
+
+  if (y + 1 < image.size()) {
+    image[y + 1][x] += err * (5.0f / 16.0f);
+
+    if (x - 1 > 0) {
+      image[y + 1][x - 1] += err * (1.0f / 16.0f);
+    }
+
+  }
+}
+
+void Image::FloydSteinbergDither(int nbits) {
+  std::vector<std::vector<f_pix>> f_image(Height(),
+                                          std::vector<f_pix>(Width()));
+
+  for (int i = 0; i < Width(); i++) {
+    for (int j = 0; j < Height(); j++) {
+      Pixel p = GetPixel(i, j);
+      f_image[i][j] = f_pix{(double)p.r, (double)p.g, (double)p.b};
+    }
+  }
+
+  this->export_depth = nbits;
+  int maximum = (1 << nbits) - 1;
+  double step = 255.0 / maximum;
+
+  for (int y = 0; y < Height(); y++) {
+    if (y % 2 == 0) {
+      for (int x = 0; x < Width(); x++) {
+        f_pix p = f_image[y][x];
+        int level_r = (int)((p.r * maximum) / 256.0f);
+        int level_g = (int)((p.g * maximum) / 256.0f);
+        int level_b = (int)((p.b * maximum) / 256.0f);
+
+        f_pix err = f_pix{
+            p.r - level_r * step,
+            p.g - level_g * step,
+            p.b - level_b * step,
+        };
+
+        propogate_error(x, y, err, f_image, true);
+
+        Pixel new_pixel = Pixel();
+        new_pixel.SetClamp(level_r, level_g, level_b);
+        GetPixel(x, y) = new_pixel;
+      }
+    } else {
+      for (int x = Width() - 1; x < 0; x--) {
+        f_pix p = f_image[y][x];
+        int level_r = (int)((p.r * maximum) / 256.0f);
+        int level_g = (int)((p.g * maximum) / 256.0f);
+        int level_b = (int)((p.b * maximum) / 256.0f);
+
+        f_pix err = f_pix{
+            p.r - level_r * step,
+            p.g - level_g * step,
+            p.b - level_b * step,
+        };
+
+        propogate_error(x, y, err, f_image, false);
+
+        Pixel new_pixel = Pixel();
+        new_pixel.SetClamp(level_r, level_g, level_b);
+        GetPixel(x, y) = new_pixel;
+      }
+    }
+  }
+/* WORK HERE */ }
 
 /* modifies the dst with the kernel*/
 void Convolve(Image *src, Image *dst, std::vector<std::vector<double>> kernel,
@@ -444,30 +562,29 @@ void Image::Sharpen(int n) {
       Pixel new_p = Pixel();
       new_p.SetClamp(r, g, b);
       this->SetPixel(x, y, new_p);
-
     }
   }
   delete blurred_image;
 }
-  // Image *img_copy = new Image(*this);
-  // int m = 1;
-  // int size = 3;
-  // std::vector<std::vector<double>> kernel(size, std::vector<double>(size));
-  //
-  // for (int i = -m; i <= m; i++) {
-  //   for (int j = -m; j <= m; j++) {
-  //     if (i == 0 and j == 0) {
-  //       kernel[i + m][j + m] = 5;
-  //     } else if (abs(j) + abs(i) == 1) {
-  //       kernel[i + m][j + m] = -1;
-  //     } else {
-  //       kernel[i + m][j + m] = 0;
-  //     }
-  //   }
-  // }
-  //
-  // Convolve(img_copy, this, kernel, 0);
-  // delete img_copy;
+// Image *img_copy = new Image(*this);
+// int m = 1;
+// int size = 3;
+// std::vector<std::vector<double>> kernel(size, std::vector<double>(size));
+//
+// for (int i = -m; i <= m; i++) {
+//   for (int j = -m; j <= m; j++) {
+//     if (i == 0 and j == 0) {
+//       kernel[i + m][j + m] = 5;
+//     } else if (abs(j) + abs(i) == 1) {
+//       kernel[i + m][j + m] = -1;
+//     } else {
+//       kernel[i + m][j + m] = 0;
+//     }
+//   }
+// }
+//
+// Convolve(img_copy, this, kernel, 0);
+// delete img_copy;
 
 void Image::EdgeDetect() {
   Image *img_copy = new Image(*this);
