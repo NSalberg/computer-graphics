@@ -495,7 +495,7 @@ void Image::FloydSteinbergDither(int nbits) {
         propogate_error(x, y, err, f_image, false);
 
         Pixel new_pixel = Pixel();
-        new_pixel.SetClamp(level_r *step, level_g *step, level_b *step);
+        new_pixel.SetClamp(level_r * step, level_g * step, level_b * step);
         printf("pixel: %d %d %d : ", new_pixel.r, new_pixel.g, new_pixel.b);
         printf("xy: %d %d rgb: %f %f %f \n", x, y, level_r, level_g, level_b);
         this->SetPixel(x, y, new_pixel);
@@ -626,27 +626,45 @@ void Image::EdgeDetect() {
 }
 
 Image *Image::Scale(double sx, double sy) {
-  // float r = max(1/sx, 1/sy);
-  // for (int x = 0; x < xmax; x++){
-  //   for (int y = 0; y < ymax; y++){
-  //     float u = x/sx;
-  //     float v = y/sy;
-  //     dest(x,y) = resample_src(u,v,r);
-  //   }
-  // }
+  Image *img_copy = new Image(*this);
+
+  for (int x = 0; x < Width(); x++) {
+    for (int y = 0; y < Height(); y++) {
+      float u = x / sx;
+      float v = y / sy;
+      img_copy->GetPixel(x, y) = Sample(u, v);
+    }
+  }
   return NULL;
 }
 
 Image *Image::Rotate(double angle) {
-  // float r = max(1/sx, 1/sy);
-  // for (int x = 0; x < xmax; x++){
-  //   for (int y = 0; y < ymax; y++){
-  //     float u = x*cos(angle) - y*sin(angle);
-  //     float v = x*sin(angle) + y*cos(angle);
-  //     dest(x,y) = resample_src(u,v,r);
-  //   }
-  // }
-  return NULL;
+  Image *img_copy = new Image(*this);
+
+  float cx = Width() / 2.0f;
+  float cy = Height() / 2.0f;
+
+  double cos_a = cos(angle);
+  double sin_a = sin(angle);
+
+  for (int x = 0; x < Width(); x++) {
+    for (int y = 0; y < Height(); y++) {
+      float dx = x - cx;
+      float dy = y - cy;
+
+      float u = dx * cos_a + dy * sin_a;
+      float v = -dx * sin_a + dy * cos_a;
+
+      u += cx;
+      v += cy;
+
+      // printf("u,v %f %f\n", u, v);
+
+      img_copy->GetPixel(x, y) = Sample(u, v);
+    }
+  }
+
+  return img_copy;
 }
 
 void Image::Fun() { /* WORK HERE */ }
@@ -658,15 +676,74 @@ void Image::SetSamplingMethod(int method) {
   assert((method >= 0) && (method < IMAGE_N_SAMPLING_METHODS));
   sampling_method = method;
 }
+
+Pixel GaussianSample(int x, int y, Image &image) {
+  int n = 0;
+  int size = 2 * n + 1;
+  double sigma = n / 2.0;
+  double sum = 0.0;
+
+  std::vector<std::vector<double>> kernel(size, std::vector<double>(size));
+  for (int i = -n; i <= n; i++) {
+    for (int j = -n; j <= n; j++) {
+      double exponent = -(i * i + j * j) / (2 * sigma * sigma);
+      double value = exp(exponent);
+      kernel[i + n][j + n] = value;
+      sum += value;
+    }
+  }
+
+  // Normalize
+  double t = 0;
+  for (int i = 0; i < size; i++) {
+    for (int j = 0; j < size; j++) {
+      kernel[i][j] /= sum;
+      t += kernel[i][j];
+    }
+  }
+
+  double r = 0, g = 0, b = 0;
+  for (int i = -n; i <= n; i++) {
+    for (int j = -n; j <= n; j++) {
+      int xx = std::min(std::max(x + i, 0), image.Width() - 1);
+      int yy = std::min(std::max(y + j, 0), image.Height() - 1);
+
+      // will fail if not valid
+      Pixel p;
+
+      try {
+        p = image.GetPixel(xx, yy);
+      } catch (const std::out_of_range &e) {
+        return Pixel();
+      }
+
+      double weight = kernel[i + n][j + n];
+      r += weight * p.r;
+      g += weight * p.g;
+      b += weight * p.b;
+    }
+  }
+  Pixel p = Pixel();
+  p.SetClamp(r, g, b);
+  return p;
+}
+
 Pixel Image::Sample(double u, double v) {
-  if (sampling_method == IMAGE_SAMPLING_POINT) // Nearest Neighbor
-    return GetPixel((int)u * width, (int)v * height);
-  else if (sampling_method == IMAGE_SAMPLING_BILINEAR) { // Bilinear
-    // Get 4 nearest pixels
-    // return the bilinear average
+  if (sampling_method == IMAGE_SAMPLING_POINT) { // Nearest Neighbor
+    // printf("samp %d %d\n", (int)u , (int)v );
+    try {
+      Pixel p = GetPixel((int)u, (int)v);
+      // printf("found %d %d %d\n", p.r, p.g, p.b);
+      return p;
+    } catch (const std::out_of_range &e) {
+      // printf("nope %d %d\n", (int)u , (int)v );
+      return Pixel();
+    }
+
+  } else if (sampling_method == IMAGE_SAMPLING_BILINEAR) { // Bilinear
   } else if (sampling_method == IMAGE_SAMPLING_GAUSSIAN) { // Gaussian
-    // Get all nearby pixels
     // return the gaussian-weighted average
+    return GaussianSample((int)u * width, (int)v * height, *this);
   }
   return Pixel(); // we should never be here
 }
