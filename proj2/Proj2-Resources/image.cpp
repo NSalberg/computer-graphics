@@ -408,22 +408,37 @@ struct f_pix {
 
 void propogate_error(int x, int y, f_pix err,
                      std::vector<std::vector<f_pix>> &image, bool going_right) {
-  if (x + 1 < image[0].size()) {
-    image[y][x + 1] += err * (7.0f / 16.0f);
+  int width = image[0].size();
+  int height = image.size();
 
-    if (y + 1 < image.size()) {
-      image[y + 1][x + 1] += err * (3.0f / 16.0f);
+  if (going_right) {
+    // Standard Floyd-Steinberg pattern (left-to-right)
+    if (x + 1 < width) {
+      image[y][x + 1] += err * (7.0 / 16.0);
     }
-
-  }
-
-  if (y + 1 < image.size()) {
-    image[y + 1][x] += err * (5.0f / 16.0f);
-
-    if (x - 1 > 0) {
-      image[y + 1][x - 1] += err * (1.0f / 16.0f);
+    if (y + 1 < height) {
+      if (x - 1 >= 0) {
+        image[y + 1][x - 1] += err * (1.0 / 16.0);
+      }
+      image[y + 1][x] += err * (5.0 / 16.0);
+      if (x + 1 < width) {
+        image[y + 1][x + 1] += err * (3.0 / 16.0);
+      }
     }
-
+  } else {
+    // Mirrored pattern (right-to-left)
+    if (x - 1 >= 0) {
+      image[y][x - 1] += err * (7.0 / 16.0);
+    }
+    if (y + 1 < height) {
+      if (x + 1 < width) {
+        image[y + 1][x + 1] += err * (1.0 / 16.0);
+      }
+      image[y + 1][x] += err * (5.0 / 16.0);
+      if (x - 1 >= 0) {
+        image[y + 1][x - 1] += err * (3.0 / 16.0);
+      }
+    }
   }
 }
 
@@ -431,10 +446,10 @@ void Image::FloydSteinbergDither(int nbits) {
   std::vector<std::vector<f_pix>> f_image(Height(),
                                           std::vector<f_pix>(Width()));
 
-  for (int i = 0; i < Width(); i++) {
-    for (int j = 0; j < Height(); j++) {
-      Pixel p = GetPixel(i, j);
-      f_image[i][j] = f_pix{(double)p.r, (double)p.g, (double)p.b};
+  for (int x = 0; x < Width(); x++) {
+    for (int y = 0; y < Height(); y++) {
+      Pixel p = GetPixel(x, y);
+      f_image[y][x] = f_pix{(double)p.r, (double)p.g, (double)p.b};
     }
   }
 
@@ -446,9 +461,9 @@ void Image::FloydSteinbergDither(int nbits) {
     if (y % 2 == 0) {
       for (int x = 0; x < Width(); x++) {
         f_pix p = f_image[y][x];
-        int level_r = (int)((p.r * maximum) / 256.0f);
-        int level_g = (int)((p.g * maximum) / 256.0f);
-        int level_b = (int)((p.b * maximum) / 256.0f);
+        double level_r = round((p.r * maximum) / 255.0f);
+        double level_g = round((p.g * maximum) / 255.0f);
+        double level_b = round((p.b * maximum) / 255.0f);
 
         f_pix err = f_pix{
             p.r - level_r * step,
@@ -459,15 +474,17 @@ void Image::FloydSteinbergDither(int nbits) {
         propogate_error(x, y, err, f_image, true);
 
         Pixel new_pixel = Pixel();
-        new_pixel.SetClamp(level_r, level_g, level_b);
-        GetPixel(x, y) = new_pixel;
+        new_pixel.SetClamp(level_r * step, level_g * step, level_b * step);
+        printf("pixel: %d %d %d : ", new_pixel.r, new_pixel.g, new_pixel.b);
+        printf("xy: %d %d rgb: %f %f %f \n", x, y, level_r, level_g, level_b);
+        this->SetPixel(x, y, new_pixel);
       }
     } else {
-      for (int x = Width() - 1; x < 0; x--) {
+      for (int x = Width() - 1; x >= 0; x--) {
         f_pix p = f_image[y][x];
-        int level_r = (int)((p.r * maximum) / 256.0f);
-        int level_g = (int)((p.g * maximum) / 256.0f);
-        int level_b = (int)((p.b * maximum) / 256.0f);
+        double level_r = round((p.r * maximum) / 255.0f);
+        double level_g = round((p.g * maximum) / 255.0f);
+        double level_b = round((p.b * maximum) / 255.0f);
 
         f_pix err = f_pix{
             p.r - level_r * step,
@@ -478,12 +495,14 @@ void Image::FloydSteinbergDither(int nbits) {
         propogate_error(x, y, err, f_image, false);
 
         Pixel new_pixel = Pixel();
-        new_pixel.SetClamp(level_r, level_g, level_b);
-        GetPixel(x, y) = new_pixel;
+        new_pixel.SetClamp(level_r *step, level_g *step, level_b *step);
+        printf("pixel: %d %d %d : ", new_pixel.r, new_pixel.g, new_pixel.b);
+        printf("xy: %d %d rgb: %f %f %f \n", x, y, level_r, level_g, level_b);
+        this->SetPixel(x, y, new_pixel);
       }
     }
   }
-/* WORK HERE */ }
+}
 
 /* modifies the dst with the kernel*/
 void Convolve(Image *src, Image *dst, std::vector<std::vector<double>> kernel,
