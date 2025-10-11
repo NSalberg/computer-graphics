@@ -626,21 +626,21 @@ void Image::EdgeDetect() {
 }
 
 Image *Image::Scale(double sx, double sy) {
-  Image *img_copy = new Image(*this);
+  Image *img_copy = new Image(Width() * sx, Height() * sy);
 
-  float cx = Width() / 2.0f;
-  float cy = Height() / 2.0f;
+  float src_cx = Width() / 2.0f;
+  float src_cy = Height() / 2.0f;
+  float dst_cx = img_copy->Width() / 2.0f;
+  float dst_cy = img_copy->Height() / 2.0f;
 
-  for (int x = 0; x < Width(); x++) {
-    for (int y = 0; y < Height(); y++) {
-      float dx = x - cx;
-      float dy = y - cy;
+  for (int x = 0; x < img_copy->Width(); x++) {
+    for (int y = 0; y < img_copy->Height(); y++) {
+      float dx = x - dst_cx;
+      float dy = y - dst_cy;
 
-      float u = dx / sx;
-      float v = dy / sy;
+      float u = dx / sx + src_cx;
+      float v = dy / sy + src_cy;
 
-      u += cx;
-      v += cy;
       img_copy->GetPixel(x, y) = Sample(u, v);
     }
   }
@@ -687,12 +687,12 @@ void Image::SetSamplingMethod(int method) {
 }
 
 Pixel GaussianSample(int x, int y, Image &image) {
-  int n = 1;
+  int n = 3;
   int size = 2 * n + 1;
   double sigma = n / 2.0;
   double sum = 0.0;
 
-  if (not image.ValidCoord(x, y)){
+  if (not image.ValidCoord(x, y)) {
     return Pixel();
   }
 
@@ -754,6 +754,38 @@ Pixel Image::Sample(double u, double v) {
     }
 
   } else if (sampling_method == IMAGE_SAMPLING_BILINEAR) { // Bilinear
+    // Get the integer and fractional parts
+    int x0 = (int)floor(u);
+    int y0 = (int)floor(v);
+    int x1 = x0 + 1;
+    int y1 = y0 + 1;
+
+    float fx = u - x0; // Fractional part in x
+    float fy = v - y0; // Fractional part in y
+
+    // Check bounds and get the 4 neighboring pixels
+    if (x0 < 0 || x1 >= Width() || y0 < 0 || y1 >= Height()) {
+      return Pixel(); // Out of bounds
+    }
+
+    Pixel p00 = GetPixel(x0, y0); // Top-left
+    Pixel p10 = GetPixel(x1, y0); // Top-right
+    Pixel p01 = GetPixel(x0, y1); // Bottom-left
+    Pixel p11 = GetPixel(x1, y1); // Bottom-right
+
+    // Bilinear interpolation formula
+    double r = (1 - fx) * (1 - fy) * p00.r + fx * (1 - fy) * p10.r +
+               (1 - fx) * fy * p01.r + fx * fy * p11.r;
+
+    double g = (1 - fx) * (1 - fy) * p00.g + fx * (1 - fy) * p10.g +
+               (1 - fx) * fy * p01.g + fx * fy * p11.g;
+
+    double b = (1 - fx) * (1 - fy) * p00.b + fx * (1 - fy) * p10.b +
+               (1 - fx) * fy * p01.b + fx * fy * p11.b;
+
+    Pixel result = Pixel();
+    result.SetClamp(r, g, b);
+    return result;
   } else if (sampling_method == IMAGE_SAMPLING_GAUSSIAN) { // Gaussian
     // return the gaussian-weighted average
     return GaussianSample(u, v, *this);
