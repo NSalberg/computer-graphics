@@ -9,6 +9,18 @@ const Object = union {
     sphere: Sphere,
 };
 
+const DirectionalLight = struct {
+    color: Vec3,
+    direction: Vec3,
+};
+const SpotLight = struct {
+    color: Vec3,
+    location: Vec3,
+    direction: Vec3,
+    angle1: f64,
+    angle2: f64,
+};
+
 const Scene = struct {
     camera_pos: Vec3 = vec3.zero,
     camera_fwd: Vec3 = Vec3{ 0, 0, -1 },
@@ -19,6 +31,8 @@ const Scene = struct {
     output_image: []const u8 = "raytraced.bmp",
     spheres: std.ArrayList(Sphere),
     ambient_light: Vec3 = Vec3{ 0, 0, 0 },
+    directional_lights: std.ArrayList(DirectionalLight),
+    point_lights: std.ArrayList(DirectionalLight),
     max_depth: u16 = 5,
 
     pub fn format(
@@ -30,13 +44,48 @@ const Scene = struct {
         try writer.print("right: {d}, {d}, {d}\n", .{ self.camera_right[0], self.camera_right[1], self.camera_right[2] });
         try writer.print("up: {d}, {d}, {d}\n", .{ self.camera_up[0], self.camera_up[1], self.camera_up[2] });
         for (self.spheres.items) |sphere| {
-            try writer.print("sphere: {d}, {d}, {d}, {d}\n", .{ sphere.center[0], sphere.center[1], sphere.center[2], sphere.radius });
+            try writer.print("{f}\n", .{sphere});
         }
     }
 };
+
+const Material = struct {
+    ambient_color: Vec3 = Vec3{ 0, 0, 0 },
+    diffuse_color: Vec3 = Vec3{ 1, 1, 1 },
+    specular_color: Vec3 = Vec3{ 0, 0, 0 },
+    nspecular: f64 = 5,
+    transmissive_color: Vec3 = Vec3{ 0, 0, 0 },
+    index_of_refraction: f64 = 1,
+
+    pub fn format(
+        self: @This(),
+        writer: anytype,
+    ) !void {
+        try writer.print(
+            "Material(" ++
+                "  ambient = ({d}, {d}, {d}),\n" ++
+                "  diffuse = ({d}, {d}, {d}),\n" ++
+                "  specular = ({d}, {d}, {d}),\n" ++
+                "  nspecular = {d},\n" ++
+                "  transmissive = ({d}, {d}, {d}),\n" ++
+                "  ior = {d}\n" ++
+                ")",
+            .{
+                self.ambient_color[0],      self.ambient_color[1],      self.ambient_color[2],
+                self.diffuse_color[0],      self.diffuse_color[1],      self.diffuse_color[2],
+                self.specular_color[0],     self.specular_color[1],     self.specular_color[2],
+                self.nspecular,             self.transmissive_color[0], self.transmissive_color[1],
+                self.transmissive_color[2], self.index_of_refraction,
+            },
+        );
+    }
+};
+
 pub const Sphere = struct {
     center: Vec3,
     radius: f64,
+    // This might be better to store as a pointer / index into another array
+    material: Material,
 
     pub fn init(center: Vec3.Vec3, radius: f64) Sphere {
         assert(radius > 0);
@@ -44,6 +93,19 @@ pub const Sphere = struct {
             .center = center,
             .radius = radius,
         };
+    }
+
+    pub fn format(
+        self: @This(),
+        writer: *std.Io.Writer,
+    ) std.Io.Writer.Error!void {
+        try writer.print("Sphere: {d}, {d}, {d}, {d}, \n {f}\n", .{
+            self.center[0],
+            self.center[1],
+            self.center[2],
+            self.radius,
+            self.material,
+        });
     }
 };
 
@@ -72,27 +134,54 @@ fn parseVec3(vals: []const u8) !Vec3 {
     return .{ x, y, z };
 }
 
+fn parseVec3It(val_it: *std.mem.SplitIterator(u8, .scalar)) !Vec3 {
+    const x = try std.fmt.parseFloat(f64, val_it.next().?);
+    const y = try std.fmt.parseFloat(f64, val_it.next().?);
+    const z = try std.fmt.parseFloat(f64, val_it.next().?);
+    return .{ x, y, z };
+}
+
+fn parseMaterial(vals: []const u8) !Material {
+    var val_it = std.mem.splitScalar(u8, vals, ' ');
+    return Material{
+        .ambient_color = try parseVec3It(&val_it),
+        .diffuse_color = try parseVec3It(&val_it),
+        .specular_color = try parseVec3It(&val_it),
+        .nspecular = try std.fmt.parseFloat(f64, val_it.next().?),
+        .transmissive_color = try parseVec3It(&val_it),
+        .index_of_refraction = try std.fmt.parseFloat(f64, val_it.next().?),
+    };
+}
+
 fn parseSceneFile(alloc: std.mem.Allocator, reader: *std.Io.Reader) !Scene {
     var scene = Scene{
         .spheres = try std.ArrayList(Sphere).initCapacity(alloc, 1),
     };
 
+    var material = Material{};
     while (reader.takeDelimiterInclusive('\n') catch |err| switch (err) {
         error.EndOfStream => null,
         else => return err,
     }) |line| {
-        std.debug.print("{s}", .{line});
+        // std.debug.print("{s}", .{line});
         if (line.len <= 0 or line[0] == '#')
             continue;
-        var line_it = std.mem.splitScalar(u8, line, ':');
 
-        // std.debug.print("{s}\n", .{line_it.first()});
-        const command = std.meta.stringToEnum(SceneCommands, line_it.first());
+        const trimmed_line = std.mem.trim(u8, line, " \n");
+        if (std.mem.allEqual(u8, trimmed_line, ' ')) {
+            continue;
+        }
 
-        if (command == null)
+        var line_it = std.mem.splitScalar(u8, trimmed_line, ':');
+
+        const l1 = line_it.first();
+        const command = std.meta.stringToEnum(SceneCommands, l1);
+        if (command == null) {
+            std.debug.print("Unkown scene command : {s} \n", .{l1});
             return error.UnknownSceneCommand;
+        }
 
-        const vals = std.mem.trim(u8, line_it.next().?, " \n");
+        const vals = std.mem.trim(u8, line_it.next().?, " ");
         switch (command.?) {
             .camera_pos => scene.camera_pos = try parseVec3(vals),
             .camera_fwd => scene.camera_fwd = try parseVec3(vals),
@@ -116,10 +205,13 @@ fn parseSceneFile(alloc: std.mem.Allocator, reader: *std.Io.Reader) !Scene {
                 try scene.spheres.append(alloc, .{
                     .center = .{ x, y, z },
                     .radius = r,
+                    .material = material,
                 });
             },
             .background => {},
-            .material => {},
+            .material => {
+                material = try parseMaterial(vals);
+            },
             .directional_light => {},
             .point_light => {},
             .spot_light => {},
