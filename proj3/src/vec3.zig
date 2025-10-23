@@ -22,8 +22,6 @@ pub fn z(v: Vec3) f64 {
 }
 
 pub fn magnitude(v: Vec3) f64 {
-    //const sqsum: f64 = v[0]*v[0] + v[2]*v[2] + v[1]*v[1];
-    //return @sqrt(sqsum);
     return @sqrt(magnitude2(v));
 }
 
