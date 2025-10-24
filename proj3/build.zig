@@ -82,8 +82,8 @@ pub fn build(b: *std.Build) void {
             },
         }),
     });
-    exe.addCSourceFiles(.{ .files = &[_][]const u8{ "src/stb_image.c", "src/stb_image_write.c" }, .flags = .{"-g"} }); // -g adds debug info, makes it easier to debug
-    exe.addCSourceFiles(.{ .files = &[_][]const u8{"src/stb_image_write.c"}, .flags = .{"-g"} }); // -g adds debug info, makes it easier to debug
+    const zstbi = b.dependency("zstbi", .{});
+    exe.root_module.addImport("zstbi", zstbi.module("root"));
 
     // This declares intent for the executable to be installed into the
     // install prefix when running `zig build` (i.e. when executing the default

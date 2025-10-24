@@ -48,10 +48,10 @@ pub const Scene = struct {
     camera_fwd: Vec3 = Vec3{ 0, 0, -1 },
     camera_up: Vec3 = Vec3{ 0, 1, 0 },
     camera_right: Vec3 = Vec3{ -1, 0, 0 },
-    camera_fov_ha: i16 = 45,
+    camera_fov_ha: f32 = 45,
     film_resolution: struct { u16, u16 } = .{ 640, 280 },
 
-    output_image: []const u8 = "raytraced.bmp",
+    output_image: [:0]const u8 = "raytraced.bmp",
 
     // Objects
     spheres: std.ArrayList(Sphere),
@@ -200,6 +200,86 @@ pub fn parseMaterial(vals: []const u8) !Material {
     };
 }
 
+pub fn parseLine(allocator: std.mem.Allocator, line: []const u8, scene: *Scene, material: *Material) !void {
+    // std.debug.print("{s}", .{line});
+    std.debug.print("{s}", .{line});
+    if (line.len <= 0 or line[0] == '#')
+        return;
+
+    const trimmed_line = std.mem.trim(u8, line, " \n");
+    if (std.mem.allEqual(u8, trimmed_line, ' ')) {
+        return;
+    }
+
+    var line_it = std.mem.splitScalar(u8, trimmed_line, ':');
+
+    const l1 = line_it.first();
+    const command = std.meta.stringToEnum(SceneCommands, l1);
+    if (command == null) {
+        std.debug.print("Unkown scene command : {s} \n", .{l1});
+        return error.UnknownSceneCommand;
+    }
+
+    const vals = std.mem.trim(u8, line_it.next().?, " ");
+    switch (command.?) {
+        .camera_pos => scene.camera_pos = try parseVec3(vals),
+        .camera_fwd => scene.camera_fwd = try parseVec3(vals),
+        .camera_up => scene.camera_up = try parseVec3(vals),
+        .camera_fov_ha => scene.camera_fov_ha = try std.fmt.parseFloat(f32, vals),
+        .image_resolution => {
+            var val_it = std.mem.splitScalar(u8, vals, ' ');
+            const width = try std.fmt.parseInt(u16, val_it.first(), 0);
+            const height = try std.fmt.parseInt(u16, val_it.next().?, 0);
+            scene.film_resolution = .{ width, height };
+        },
+        .output_image => {
+            const out = std.mem.trim(u8, vals, " ");
+            var out_term = try allocator.alloc(u8, out.len + 1);
+            @memcpy(out_term.ptr, out);
+            out_term[out_term.len - 1] = 0;
+            scene.output_image = out_term[0..(out_term.len - 1) :0];
+        },
+        .sphere => {
+            var val_it = std.mem.splitScalar(u8, vals, ' ');
+            const x = try std.fmt.parseFloat(f64, val_it.next().?);
+            const y = try std.fmt.parseFloat(f64, val_it.next().?);
+            const z = try std.fmt.parseFloat(f64, val_it.next().?);
+            const r = try std.fmt.parseFloat(f64, val_it.next().?);
+            try scene.spheres.append(allocator, .{
+                .center = .{ x, y, z },
+                .radius = r,
+                .material = material.*,
+            });
+        },
+
+        .background => scene.background = try parseVec3(vals),
+        .material => material.* = try parseMaterial(vals),
+        .directional_light => {
+            var val_it = std.mem.splitScalar(u8, vals, ' ');
+            const color = try parseVec3It(&val_it);
+            const direction = try parseVec3It(&val_it);
+            try scene.directional_lights.append(allocator, .{ .color = color, .direction = direction });
+        },
+        .point_light => {
+            var val_it = std.mem.splitScalar(u8, vals, ' ');
+            const color = try parseVec3It(&val_it);
+            const direction = try parseVec3It(&val_it);
+            try scene.point_lights.append(allocator, .{ .color = color, .direction = direction });
+        },
+        .spot_light => {
+            var val_it = std.mem.splitScalar(u8, vals, ' ');
+            try scene.spot_lights.append(allocator, .{
+                .color = try parseVec3It(&val_it),
+                .location = try parseVec3It(&val_it),
+                .direction = try parseVec3It(&val_it),
+                .angle1 = try std.fmt.parseFloat(f64, val_it.next().?),
+                .angle2 = try std.fmt.parseFloat(f64, val_it.next().?),
+            });
+        },
+        .ambient_light => scene.ambient_light = try parseVec3(vals),
+        .max_depth => scene.max_depth = try std.fmt.parseInt(u16, vals, 10),
+    }
+}
 pub fn parseSceneFile(alloc: std.mem.Allocator, reader: *std.Io.Reader) !Scene {
     var scene = Scene{
         .spheres = try std.ArrayList(Sphere).initCapacity(alloc, 1),
@@ -210,84 +290,14 @@ pub fn parseSceneFile(alloc: std.mem.Allocator, reader: *std.Io.Reader) !Scene {
 
     var material = Material{};
     while (reader.takeDelimiterInclusive('\n') catch |err| switch (err) {
-        error.EndOfStream => null,
+        error.EndOfStream => blk: {
+            try parseLine(alloc, try reader.take(reader.end - reader.seek), &scene, &material);
+            break :blk null;
+        },
         else => return err,
     }) |line| {
-        // std.debug.print("{s}", .{line});
-        if (line.len <= 0 or line[0] == '#')
-            continue;
-
-        const trimmed_line = std.mem.trim(u8, line, " \n");
-        if (std.mem.allEqual(u8, trimmed_line, ' ')) {
-            continue;
-        }
-
-        var line_it = std.mem.splitScalar(u8, trimmed_line, ':');
-
-        const l1 = line_it.first();
-        const command = std.meta.stringToEnum(SceneCommands, l1);
-        if (command == null) {
-            std.debug.print("Unkown scene command : {s} \n", .{l1});
-            return error.UnknownSceneCommand;
-        }
-
-        const vals = std.mem.trim(u8, line_it.next().?, " ");
-        switch (command.?) {
-            .camera_pos => scene.camera_pos = try parseVec3(vals),
-            .camera_fwd => scene.camera_fwd = try parseVec3(vals),
-            .camera_up => scene.camera_up = try parseVec3(vals),
-            .camera_fov_ha => scene.camera_fov_ha = try std.fmt.parseInt(i16, vals, 10),
-            .image_resolution => {
-                var val_it = std.mem.splitScalar(u8, vals, ' ');
-                const width = try std.fmt.parseInt(u16, val_it.first(), 0);
-                const height = try std.fmt.parseInt(u16, val_it.next().?, 0);
-                scene.film_resolution = .{ width, height };
-            },
-            .output_image => {
-                scene.output_image = std.mem.trim(u8, vals, " ");
-            },
-            .sphere => {
-                var val_it = std.mem.splitScalar(u8, vals, ' ');
-                const x = try std.fmt.parseFloat(f64, val_it.next().?);
-                const y = try std.fmt.parseFloat(f64, val_it.next().?);
-                const z = try std.fmt.parseFloat(f64, val_it.next().?);
-                const r = try std.fmt.parseFloat(f64, val_it.next().?);
-                try scene.spheres.append(alloc, .{
-                    .center = .{ x, y, z },
-                    .radius = r,
-                    .material = material,
-                });
-            },
-
-            .background => scene.background = try parseVec3(vals),
-            .material => material = try parseMaterial(vals),
-            .directional_light => {
-                var val_it = std.mem.splitScalar(u8, vals, ' ');
-                const color = try parseVec3It(&val_it);
-                const direction = try parseVec3It(&val_it);
-                try scene.directional_lights.append(alloc, .{ .color = color, .direction = direction });
-            },
-            .point_light => {
-                var val_it = std.mem.splitScalar(u8, vals, ' ');
-                const color = try parseVec3It(&val_it);
-                const direction = try parseVec3It(&val_it);
-                try scene.point_lights.append(alloc, .{ .color = color, .direction = direction });
-            },
-            .spot_light => {
-                var val_it = std.mem.splitScalar(u8, vals, ' ');
-                try scene.spot_lights.append(alloc, .{
-                    .color = try parseVec3It(&val_it),
-                    .location = try parseVec3It(&val_it),
-                    .direction = try parseVec3It(&val_it),
-                    .angle1 = try std.fmt.parseFloat(f64, val_it.next().?),
-                    .angle2 = try std.fmt.parseFloat(f64, val_it.next().?),
-                });
-            },
-            .ambient_light => scene.ambient_light = try parseVec3(vals),
-            .max_depth => scene.max_depth = try std.fmt.parseInt(u16, vals, 10),
-        }
-
-        scene.camera_right = vec3.unit(vec3.cross(scene.camera_up, scene.camera_fwd));
+        try parseLine(alloc, line, &scene, &material);
     }
+    scene.camera_right = vec3.unit(vec3.cross(scene.camera_up, scene.camera_fwd));
     return scene;
 }
