@@ -81,7 +81,7 @@ pub fn traceScene(allocator: std.mem.Allocator, the_scene: scene.Scene, img_widt
                 if (dist != null) {
                     if (dist.? < closest) {
                         closest = dist.?;
-                        color = Vec3{ 1, 1, 1 };
+                        color = sphere.material.ambient_color;
                     }
                 }
             }
