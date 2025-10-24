@@ -22,20 +22,26 @@ const Image = @import("image.zig").Image;
 //   }
 //   return false;
 // }
-pub fn raySphereIntersect(start: Vec3, dir: Vec3, sphere: scene.Sphere) bool {
+pub fn raySphereIntersect(start: Vec3, dir: Vec3, sphere: scene.Sphere) ?f64 {
     const a = vec3.dot(dir, dir);
     const to_start: Vec3 = (start - sphere.center);
     const b = 2 * vec3.dot(dir, to_start);
     const c = vec3.dot(to_start, to_start) - sphere.radius * sphere.radius;
     const discr = b * b - 4 * a * c;
     if (discr < 0) {
-        return false;
+        return null;
     } else {
         const t0: f64 = (-b + std.math.sqrt(discr)) / (2 * a);
         const t1: f64 = (-b - std.math.sqrt(discr)) / (2 * a);
-        if (t0 > 0 or t1 > 0) return true;
+        // if (t0 > 0 or t1 > 0) return true;
+        if (t0 > 0 and t1 > 0) {
+            return @min(t0, t1);
+        } else if (t0 > 0) {
+            return t0;
+        } else if (t1 > 0) {
+            return t1;
+        } else return null;
     }
-    return false;
 }
 
 pub fn traceScene(allocator: std.mem.Allocator, the_scene: scene.Scene, img_width: u32, img_height: u32) !Image {
@@ -61,11 +67,26 @@ pub fn traceScene(allocator: std.mem.Allocator, the_scene: scene.Scene, img_widt
 
             const p: Vec3 = s.camera_pos - @as(Vec3, @splat(d)) * s.camera_fwd + @as(Vec3, @splat(u)) * s.camera_right + @as(Vec3, @splat(v)) * s.camera_up;
             const ray_dir: Vec3 = vec3.unit(p - s.camera_pos);
-            for (s.spheres.items) |sphere| {
-                const hit = raySphereIntersect(s.camera_pos, ray_dir, sphere);
-                const color = if (hit) Vec3{ 1, 1, 1 } else Vec3{ 0, 0, 0 };
-                output_img.setPixel(@intCast(i), @intCast(j), color);
+
+            var color: Vec3 = Vec3{ 0, 0, 0 };
+            var closest = std.math.inf(f64);
+            for (s.spheres.items, 0..s.spheres.items.len) |sphere, ind| {
+                const dist = raySphereIntersect(s.camera_pos, ray_dir, sphere);
+                _ = ind;
+                // if (ind == 0) {
+                //     std.debug.print("{d},{},{d},{d}\n", .{ ind, dist, i, j });
+                //     std.debug.print("{d},{d},{d}\n", .{ s.camera_pos[0], s.camera_pos[1], s.camera_pos[2] });
+                // }
+
+                if (dist != null) {
+                    if (dist.? < closest) {
+                        closest = dist.?;
+                        color = Vec3{ 1, 1, 1 };
+                    }
+                }
             }
+
+            output_img.setPixel(@intCast(i), @intCast(j), color);
         }
     }
     return output_img;
@@ -93,13 +114,14 @@ pub fn main() !void {
     std.debug.print("{f}\n", .{scene_});
 
     zstbi.init(alloc);
+    // this crashes so i guess we'll just leak some memory
     // defer zstbi.deinit();
 
     var timer = try std.time.Timer.start();
     var output_img = try traceScene(alloc, scene_, 800, 600);
     std.debug.print("Rendering took {d:.6} s\n", .{@as(f64, @floatFromInt(timer.lap())) / 1e9});
-    std.debug.print("output: {s}\n", .{scene_.output_image});
 
+    std.debug.print("output: {s}\n", .{scene_.output_image});
     try output_img.write(scene_.output_image, alloc);
 
     // auto t_start = std::chrono::high_resolution_clock::now();
