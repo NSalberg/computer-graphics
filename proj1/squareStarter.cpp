@@ -119,10 +119,10 @@ unsigned char *loadImage(int &img_w, int &img_h) {
 
       int r, g, b;
       ppmFile >> r >> g >> b;
-      img_data[i * img_w * 4 + j * 4] = std::min(r * 2, 255);     // Red
-      img_data[i * img_w * 4 + j * 4 + 1] = std::min(g * 2, 255); // Green
-      img_data[i * img_w * 4 + j * 4 + 2] = std::min(b * 2, 255); // Blue
-      img_data[i * img_w * 4 + j * 4 + 3] = 255;                  // Alpha
+      img_data[i * img_w * 4 + j * 4] = r;       // Red
+      img_data[i * img_w * 4 + j * 4 + 1] = g;   // Green
+      img_data[i * img_w * 4 + j * 4 + 2] = b;   // Blue
+      img_data[i * img_w * 4 + j * 4 + 3] = 255; // Alpha
     }
   }
   return img_data;
