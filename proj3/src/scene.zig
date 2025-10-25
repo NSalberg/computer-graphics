@@ -46,12 +46,16 @@ pub const PointLight = struct {
 
     pub fn illuminate(self: PointLight, ray: main.Ray, hit_record: main.HitRecord) Vec3 {
         const x = ray.eval(hit_record.distance);
-        const r = vec3.unit(self.loc - x);
-        const l = (self.loc - x) / r;
+        // const to_light = self.loc - x;
+        // const dist_squared = vec3.dot(to_light, to_light);
+
+        const r = vec3.norm(self.loc - x);
+        const l = (self.loc - x) / vec3.splat(r);
         const n = hit_record.surface_normal;
 
-        const E = vec3.splat(@max(0, vec3.dot(n, l))) * self.color / vec3.splat(vec3.dot(r, r));
+        const E = vec3.splat(@max(0, vec3.dot(n, l))) * self.color / vec3.splat(r * r);
         const k = hit_record.material.evaluate(vec3.unit(l), vec3.unit(ray.point - x), n);
+        // std.debug.print("E: {d}, k: {d}\n", .{ E[0], k[0] });
         return E * k;
     }
 
@@ -157,23 +161,28 @@ pub const Scene = struct {
     }
 };
 
+const pi_inv: f64 = 1.0 / std.math.pi;
 pub const Material = struct {
     ambient_color: Vec3 = Vec3{ 0, 0, 0 },
     diffuse_color: Vec3 = Vec3{ 1, 1, 1 },
     specular_color: Vec3 = Vec3{ 0, 0, 0 },
-    shininess: f64 = 5,
+    specular_coefficient: f64 = 5,
     transmissive_color: Vec3 = Vec3{ 0, 0, 0 },
     index_of_refraction: f64 = 1,
 
     pub fn evaluate(self: Material, l: Vec3, v: Vec3, n: Vec3) Vec3 {
-        // Diffuse (Lambertian)
-        const diffuse = self.diffuse_color;
+        _ = l;
+        _ = v;
+        _ = n;
 
-        // Specular (Blinn-Phong or Phong)
-        const h = vec3.unit(l + v);
-        const specular = self.specular_color * vec3.splat(std.math.pow(f64, @max(0, vec3.dot(n, h)), self.shininess));
+        // const h = vec3.unit(l + v);
+        const diffuse = self.diffuse_color * vec3.splat(pi_inv);
+
+        // Blinn-Phong
+        // const specular = self.specular_color * vec3.splat(std.math.pow(f64, @max(0, vec3.dot(n, h)), self.specular_coefficient));
         // std.debug.print("k {d} {d}\n", .{ diffuse[0], specular[0] });
-        return diffuse + specular;
+        // return diffuse + specular;
+        return diffuse;
     }
 
     pub fn format(
@@ -193,7 +202,7 @@ pub const Material = struct {
                 self.ambient_color[0],      self.ambient_color[1],      self.ambient_color[2],
                 self.diffuse_color[0],      self.diffuse_color[1],      self.diffuse_color[2],
                 self.specular_color[0],     self.specular_color[1],     self.specular_color[2],
-                self.shininess,             self.transmissive_color[0], self.transmissive_color[1],
+                self.specular_coefficient,  self.transmissive_color[0], self.transmissive_color[1],
                 self.transmissive_color[2], self.index_of_refraction,
             },
         );
@@ -266,7 +275,7 @@ pub fn parseMaterial(vals: []const u8) !Material {
         .ambient_color = try parseVec3It(&val_it),
         .diffuse_color = try parseVec3It(&val_it),
         .specular_color = try parseVec3It(&val_it),
-        .shininess = try std.fmt.parseFloat(f64, val_it.next().?),
+        .specular_coefficient = try std.fmt.parseFloat(f64, val_it.next().?),
         .transmissive_color = try parseVec3It(&val_it),
         .index_of_refraction = blk: {
             const ior_s = val_it.next().?;

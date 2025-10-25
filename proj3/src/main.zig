@@ -109,8 +109,6 @@ pub fn traceScene(allocator: std.mem.Allocator, the_scene: scene.Scene) !Image {
                     if (hit_record.?.distance < closest_dist) {
                         closest_dist = hit_record.?.distance;
                         closest_hit = hit_record.?;
-                        // need to calculate color based on lights and shit
-                        // color = ambient + diffuse + specular;
                     }
                 }
             }

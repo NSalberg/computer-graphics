@@ -21,7 +21,7 @@ pub fn z(v: Vec3) f64 {
     return v[2];
 }
 
-pub fn magnitude(v: Vec3) f64 {
+pub fn norm(v: Vec3) f64 {
     return @sqrt(magnitude2(v));
 }
 
@@ -44,7 +44,7 @@ pub fn cross(lhs: Vec3, rhs: Vec3) Vec3 {
 
 pub fn unit(v: Vec3) Vec3 {
     // Magnitude is a f64 scalar value
-    const mag = magnitude(v);
+    const mag = norm(v);
     // so we check for zero and return a zero unit vector.
     if (mag == 0) return zero;
 
