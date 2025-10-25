@@ -33,8 +33,8 @@
     // internet connectivity.
     .dependencies = .{
         .zstbi = .{
-            .url = "git+https://github.com/zig-gamedev/zstbi#2c4b3100ccb7aed90ecc9439030899764e2a8d47",
-            .hash = "zstbi-0.11.0-dev-L0Ea_yaWBwAHwFoCuyjkFyaiSsbjt4UOrkntR0c_nmzz",
+            .url = "git+https://github.com/NSalberg/zstbi#9c148471165e058e470998ce69d4a24b0ae24d81",
+            .hash = "zstbi-0.11.0-dev-L0Ea_8uWBwBg3aMIr2AAD0_5G73ZhmXEVwig34FNDqfo",
         },
     },
     .paths = .{

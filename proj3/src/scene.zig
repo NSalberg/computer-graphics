@@ -77,16 +77,20 @@ pub const DirectionalLight = struct {
     direction: Vec3,
 
     pub fn illuminate(self: DirectionalLight, ray: main.Ray, hit_record: main.HitRecord, scene: *const Scene) Vec3 {
-        _ = scene;
         const x = ray.eval(hit_record.distance);
         const l = vec3.unit(-self.direction);
         const n = hit_record.surface_normal;
 
-        const E = self.color * vec3.splat(@max(0, vec3.dot(n, l)));
-        const v = vec3.unit(ray.point - x);
-        const k = hit_record.material.evaluate(vec3.unit(l), v, n);
-
-        return E * k;
+        const srec = scene.hit(.{ .point = x, .dir = -self.direction }, 0.002, std.math.inf(f64));
+        if (srec != null) {
+            // we hit an object on the way to the light so we in shadow
+            return vec3.zero;
+        } else {
+            const E = self.color * vec3.splat(@max(0, vec3.dot(n, l)));
+            const v = vec3.unit(ray.point - x);
+            const k = hit_record.material.evaluate(vec3.unit(l), v, n);
+            return E * k;
+        }
     }
 
     pub fn format(self: @This(), writer: anytype) !void {
@@ -157,10 +161,11 @@ pub const Scene = struct {
             color = vec3.zero;
             for (self.lights.items) |light| {
                 // Reflect
-                const n = hit_obj.?.surface_normal;
-                const reflection = ray.dir - vec3.splat(2 * vec3.dot(ray.dir, n)) * n;
                 color += light.illuminate(ray, hit_obj.?, &self);
                 if (bounces > 0) {
+                    const n = hit_obj.?.surface_normal;
+                    const reflection = ray.dir - vec3.splat(2 * vec3.dot(ray.dir, n)) * n;
+                    // bounce_point + eps * normal
                     const p = ray.eval(hit_obj.?.distance) + n * vec3.splat(0.001);
                     color += hit_obj.?.material.specular_color * self.shadeRay(.{ .dir = reflection, .point = p }, bounces - 1);
                 }
@@ -284,7 +289,7 @@ pub const SceneCommands = enum {
     camera_fwd,
     camera_up,
     camera_fov_ha,
-    image_resolution,
+    film_resolution,
     output_image,
     sphere,
     background,
@@ -357,7 +362,7 @@ pub fn parseLine(allocator: std.mem.Allocator, line: []const u8, scene: *Scene, 
         .camera_fwd => scene.camera_fwd = try parseVec3(vals),
         .camera_up => scene.camera_up = try parseVec3(vals),
         .camera_fov_ha => scene.camera_fov_ha = try std.fmt.parseFloat(f32, vals),
-        .image_resolution => {
+        .film_resolution => {
             var val_it = std.mem.splitScalar(u8, vals, ' ');
             const width = try std.fmt.parseInt(u16, val_it.first(), 0);
             const height = try std.fmt.parseInt(u16, val_it.next().?, 0);
@@ -376,11 +381,11 @@ pub fn parseLine(allocator: std.mem.Allocator, line: []const u8, scene: *Scene, 
             const y = try std.fmt.parseFloat(f64, val_it.next().?);
 
             const z_s = val_it.next().?;
-            std.debug.print("dddd|{s}|bbb\n", .{z_s});
+            // std.debug.print("dddd|{s}|bbb\n", .{z_s});
             const z = try std.fmt.parseFloat(f64, z_s);
 
             const r_s = val_it.next().?;
-            std.debug.print("ff|{x}|gg, len = {}\n", .{ r_s, r_s.len });
+            // std.debug.print("ff|{x}|gg, len = {}\n", .{ r_s, r_s.len });
             const r = try std.fmt.parseFloat(f64, r_s);
 
             try scene.spheres.append(allocator, .{
