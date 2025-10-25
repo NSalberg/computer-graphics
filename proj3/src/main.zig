@@ -100,7 +100,7 @@ pub fn traceScene(allocator: std.mem.Allocator, the_scene: scene.Scene) !Image {
             const ray_dir: Vec3 = vec3.unit(p - s.camera_pos);
             const ray = Ray{ .point = s.camera_pos, .dir = ray_dir };
 
-            const color = s.shadeRay(ray, 0);
+            const color = s.shadeRay(ray, s.max_depth);
 
             output_img.setPixel(@intCast(i), @intCast(j), color);
         }
