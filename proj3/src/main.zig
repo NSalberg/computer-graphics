@@ -22,7 +22,27 @@ const Image = @import("image.zig").Image;
 //   }
 //   return false;
 // }
-pub fn raySphereIntersect(start: Vec3, dir: Vec3, sphere: scene.Sphere) ?f64 {
+pub const Ray = struct {
+    point: Vec3,
+    dir: Vec3,
+
+    /// point + t * dir
+    pub fn eval(self: Ray, t: f64) Vec3 {
+        return self.point + @as(Vec3, @splat(t)) * self.dir;
+    }
+};
+
+pub const HitRecord = struct {
+    material: scene.Material,
+    distance: f64,
+    surface_normal: Vec3,
+};
+// return HitRecord{ surface, t, surface_normal}
+// start + dir could becombined into a ray struct
+pub fn raySphereIntersect(ray: Ray, sphere: scene.Sphere) ?HitRecord {
+    const start = ray.point;
+    const dir = ray.dir;
+
     const a = vec3.dot(dir, dir);
     const to_start: Vec3 = (start - sphere.center);
     const b = 2 * vec3.dot(dir, to_start);
@@ -33,18 +53,29 @@ pub fn raySphereIntersect(start: Vec3, dir: Vec3, sphere: scene.Sphere) ?f64 {
     } else {
         const t0: f64 = (-b + std.math.sqrt(discr)) / (2 * a);
         const t1: f64 = (-b - std.math.sqrt(discr)) / (2 * a);
-        // if (t0 > 0 or t1 > 0) return true;
+
+        var t: f64 = undefined;
         if (t0 > 0 and t1 > 0) {
-            return @min(t0, t1);
+            t = @min(t0, t1);
         } else if (t0 > 0) {
-            return t0;
+            t = t0;
         } else if (t1 > 0) {
-            return t1;
+            t = t1;
         } else return null;
+
+        const p = ray.eval(t);
+        return HitRecord{
+            .distance = t,
+            .material = sphere.material,
+            .surface_normal = vec3.unit(p - sphere.center),
+        };
     }
 }
 
-pub fn traceScene(allocator: std.mem.Allocator, the_scene: scene.Scene, img_width: u32, img_height: u32) !Image {
+pub fn traceScene(allocator: std.mem.Allocator, the_scene: scene.Scene) !Image {
+    const s = the_scene;
+    const img_width = s.film_resolution.@"0";
+    const img_height = s.film_resolution.@"1";
     var output_img = try Image.init(allocator, img_width, img_height);
 
     const half_w = img_width / 2;
@@ -56,7 +87,6 @@ pub fn traceScene(allocator: std.mem.Allocator, the_scene: scene.Scene, img_widt
     const inv_img_height = 1.0 / @as(f32, @floatFromInt(img_height));
     const f_half_h: f32 = @floatFromInt(half_h);
 
-    const s = the_scene;
     const d: f32 = f_half_h / std.math.tan(s.camera_fov_ha * (std.math.pi / 180.0));
     for (0..img_width) |i| {
         for (0..img_height) |j| {
@@ -67,22 +97,28 @@ pub fn traceScene(allocator: std.mem.Allocator, the_scene: scene.Scene, img_widt
 
             const p: Vec3 = s.camera_pos - @as(Vec3, @splat(d)) * s.camera_fwd + @as(Vec3, @splat(u)) * s.camera_right + @as(Vec3, @splat(v)) * s.camera_up;
             const ray_dir: Vec3 = vec3.unit(p - s.camera_pos);
+            const ray = Ray{ .point = s.camera_pos, .dir = ray_dir };
 
-            var color: Vec3 = Vec3{ 0, 0, 0 };
-            var closest = std.math.inf(f64);
-            for (s.spheres.items, 0..s.spheres.items.len) |sphere, ind| {
-                const dist = raySphereIntersect(s.camera_pos, ray_dir, sphere);
-                _ = ind;
-                // if (ind == 0) {
-                //     std.debug.print("{d},{},{d},{d}\n", .{ ind, dist, i, j });
-                //     std.debug.print("{d},{d},{d}\n", .{ s.camera_pos[0], s.camera_pos[1], s.camera_pos[2] });
-                // }
+            var color: Vec3 = s.background;
+            var closest_dist = std.math.inf(f64);
+            var closest_hit: HitRecord = undefined;
+            for (s.spheres.items) |sphere| {
+                const hit_record = raySphereIntersect(ray, sphere);
 
-                if (dist != null) {
-                    if (dist.? < closest) {
-                        closest = dist.?;
-                        color = sphere.material.ambient_color;
+                if (hit_record != null) {
+                    if (hit_record.?.distance < closest_dist) {
+                        closest_dist = hit_record.?.distance;
+                        closest_hit = hit_record.?;
+                        // need to calculate color based on lights and shit
+                        // color = ambient + diffuse + specular;
                     }
+                }
+            }
+            // we got a hit
+            if (closest_dist != std.math.inf(f64)) {
+                color = vec3.zero;
+                for (s.lights.items) |light| {
+                    color += light.illuminate(ray, closest_hit);
                 }
             }
 
@@ -118,7 +154,7 @@ pub fn main() !void {
     // defer zstbi.deinit();
 
     var timer = try std.time.Timer.start();
-    var output_img = try traceScene(alloc, scene_, 800, 600);
+    var output_img = try traceScene(alloc, scene_);
     std.debug.print("Rendering took {d:.6} s\n", .{@as(f64, @floatFromInt(timer.lap())) / 1e9});
 
     std.debug.print("output: {s}\n", .{scene_.output_image});

@@ -1,4 +1,5 @@
 const vec3 = @import("vec3.zig");
+const main = @import("main.zig");
 const Vec3 = vec3.Vec3;
 const std = @import("std");
 const assert = std.debug.assert;
@@ -7,9 +8,73 @@ pub const Object = union {
     sphere: Sphere,
 };
 
+// This might actually be slower, might be better to each have their own array lists
+pub const Light = union(enum) {
+    directional_light: DirectionalLight,
+    ambient_light: AmbientLight,
+    spot_light: SpotLight,
+    point_light: PointLight,
+
+    pub fn illuminate(light: Light, r: main.Ray, hit: main.HitRecord) Vec3 {
+        return switch (light) {
+            inline else => |l| l.illuminate(r, hit),
+        };
+    }
+
+    pub fn format(self: @This(), writer: anytype) !void {
+        return switch (self) {
+            inline else => |l| try writer.print("{f}", .{l}),
+        };
+    }
+};
+
+pub const AmbientLight = struct {
+    intensity: Vec3,
+    pub fn illuminate(self: AmbientLight, ray: main.Ray, hit_record: main.HitRecord) Vec3 {
+        _ = ray;
+        return self.intensity * hit_record.material.ambient_color;
+    }
+
+    pub fn format(self: @This(), writer: anytype) !void {
+        try writer.print("AmbientLight(intensity=({d}, {d}, {d}))", .{ self.intensity[0], self.intensity[1], self.intensity[2] });
+    }
+};
+
+pub const PointLight = struct {
+    color: Vec3,
+    loc: Vec3,
+
+    pub fn illuminate(self: PointLight, ray: main.Ray, hit_record: main.HitRecord) Vec3 {
+        const x = ray.eval(hit_record.distance);
+        const r = vec3.unit(self.loc - x);
+        const l = (self.loc - x) / r;
+        const n = hit_record.surface_normal;
+
+        const E = vec3.splat(@max(0, vec3.dot(n, l))) * self.color / vec3.splat(vec3.dot(r, r));
+        const k = hit_record.material.evaluate(vec3.unit(l), vec3.unit(ray.point - x), n);
+        return E * k;
+    }
+
+    pub fn format(self: @This(), writer: anytype) !void {
+        try writer.print(
+            "PointLight(color=({d}, {d}, {d}), dir=({d}, {d}, {d}))",
+            .{
+                self.color[0], self.color[1], self.color[2],
+                self.loc[0],   self.loc[1],   self.loc[2],
+            },
+        );
+    }
+};
 pub const DirectionalLight = struct {
     color: Vec3,
     direction: Vec3,
+
+    pub fn illuminate(self: DirectionalLight, ray: main.Ray, hit_record: main.HitRecord) Vec3 {
+        _ = self;
+        _ = ray;
+        _ = hit_record;
+        return vec3.zero;
+    }
 
     pub fn format(self: @This(), writer: anytype) !void {
         try writer.print(
@@ -28,6 +93,13 @@ pub const SpotLight = struct {
     direction: Vec3,
     angle1: f64,
     angle2: f64,
+
+    pub fn illuminate(self: SpotLight, ray: main.Ray, hit_record: main.HitRecord) Vec3 {
+        _ = self;
+        _ = ray;
+        _ = hit_record;
+        return vec3.zero;
+    }
 
     pub fn format(self: @This(), writer: anytype) !void {
         try writer.print(
@@ -49,7 +121,7 @@ pub const Scene = struct {
     camera_up: Vec3 = Vec3{ 0, 1, 0 },
     camera_right: Vec3 = Vec3{ -1, 0, 0 },
     camera_fov_ha: f32 = 45,
-    film_resolution: struct { u16, u16 } = .{ 640, 280 },
+    film_resolution: struct { u16, u16 } = .{ 640, 480 },
 
     output_image: [:0]const u8 = "raytraced.bmp",
 
@@ -58,11 +130,7 @@ pub const Scene = struct {
 
     background: Vec3 = Vec3{ 0, 0, 0 },
 
-    // Lights
-    ambient_light: Vec3 = Vec3{ 0, 0, 0 },
-    directional_lights: std.ArrayList(DirectionalLight),
-    point_lights: std.ArrayList(DirectionalLight),
-    spot_lights: std.ArrayList(SpotLight),
+    lights: std.ArrayList(Light),
 
     max_depth: u16 = 5,
 
@@ -81,15 +149,8 @@ pub const Scene = struct {
 
         try writer.print("background: {d}, {d}, {d}\n", .{ self.background[0], self.background[1], self.background[2] });
 
-        try writer.print("ambient_light: {d}, {d}, {d}\n", .{ self.ambient_light[0], self.ambient_light[1], self.ambient_light[2] });
-        for (self.directional_lights.items) |light| {
-            try writer.print("directional_lights: {f}\n", .{light});
-        }
-        for (self.point_lights.items) |light| {
-            try writer.print("point_lights: {f}\n", .{light});
-        }
-        for (self.spot_lights.items) |light| {
-            try writer.print("spot_lights: {f}\n", .{light});
+        for (self.lights.items) |l| {
+            try writer.print("{f}\n", .{l});
         }
 
         try writer.print("max_depth: {}\n", .{self.max_depth});
@@ -100,9 +161,20 @@ pub const Material = struct {
     ambient_color: Vec3 = Vec3{ 0, 0, 0 },
     diffuse_color: Vec3 = Vec3{ 1, 1, 1 },
     specular_color: Vec3 = Vec3{ 0, 0, 0 },
-    nspecular: f64 = 5,
+    shininess: f64 = 5,
     transmissive_color: Vec3 = Vec3{ 0, 0, 0 },
     index_of_refraction: f64 = 1,
+
+    pub fn evaluate(self: Material, l: Vec3, v: Vec3, n: Vec3) Vec3 {
+        // Diffuse (Lambertian)
+        const diffuse = self.diffuse_color;
+
+        // Specular (Blinn-Phong or Phong)
+        const h = vec3.unit(l + v);
+        const specular = self.specular_color * vec3.splat(std.math.pow(f64, @max(0, vec3.dot(n, h)), self.shininess));
+        // std.debug.print("k {d} {d}\n", .{ diffuse[0], specular[0] });
+        return diffuse + specular;
+    }
 
     pub fn format(
         self: @This(),
@@ -121,7 +193,7 @@ pub const Material = struct {
                 self.ambient_color[0],      self.ambient_color[1],      self.ambient_color[2],
                 self.diffuse_color[0],      self.diffuse_color[1],      self.diffuse_color[2],
                 self.specular_color[0],     self.specular_color[1],     self.specular_color[2],
-                self.nspecular,             self.transmissive_color[0], self.transmissive_color[1],
+                self.shininess,             self.transmissive_color[0], self.transmissive_color[1],
                 self.transmissive_color[2], self.index_of_refraction,
             },
         );
@@ -194,9 +266,14 @@ pub fn parseMaterial(vals: []const u8) !Material {
         .ambient_color = try parseVec3It(&val_it),
         .diffuse_color = try parseVec3It(&val_it),
         .specular_color = try parseVec3It(&val_it),
-        .nspecular = try std.fmt.parseFloat(f64, val_it.next().?),
+        .shininess = try std.fmt.parseFloat(f64, val_it.next().?),
         .transmissive_color = try parseVec3It(&val_it),
-        .index_of_refraction = try std.fmt.parseFloat(f64, val_it.next().?),
+        .index_of_refraction = blk: {
+            const ior_s = val_it.next().?;
+            std.debug.print("ior|{x}|gg, len = {}\n", .{ ior_s, ior_s.len });
+            const ior = try std.fmt.parseFloat(f64, ior_s);
+            break :blk ior;
+        },
     };
 }
 
@@ -206,7 +283,7 @@ pub fn parseLine(allocator: std.mem.Allocator, line: []const u8, scene: *Scene, 
     if (line.len <= 0 or line[0] == '#')
         return;
 
-    const trimmed_line = std.mem.trim(u8, line, " \n");
+    const trimmed_line = std.mem.trim(u8, line, &std.ascii.whitespace);
     if (std.mem.allEqual(u8, trimmed_line, ' ')) {
         return;
     }
@@ -221,6 +298,9 @@ pub fn parseLine(allocator: std.mem.Allocator, line: []const u8, scene: *Scene, 
     }
 
     const vals = std.mem.trim(u8, line_it.next().?, " ");
+    errdefer {
+        std.debug.print("Unable to parse line:  {s}\n", .{line});
+    }
     switch (command.?) {
         .camera_pos => scene.camera_pos = try parseVec3(vals),
         .camera_fwd => scene.camera_fwd = try parseVec3(vals),
@@ -243,8 +323,15 @@ pub fn parseLine(allocator: std.mem.Allocator, line: []const u8, scene: *Scene, 
             var val_it = std.mem.splitScalar(u8, vals, ' ');
             const x = try std.fmt.parseFloat(f64, val_it.next().?);
             const y = try std.fmt.parseFloat(f64, val_it.next().?);
-            const z = try std.fmt.parseFloat(f64, val_it.next().?);
-            const r = try std.fmt.parseFloat(f64, val_it.next().?);
+
+            const z_s = val_it.next().?;
+            std.debug.print("dddd|{s}|bbb\n", .{z_s});
+            const z = try std.fmt.parseFloat(f64, z_s);
+
+            const r_s = val_it.next().?;
+            std.debug.print("ff|{x}|gg, len = {}\n", .{ r_s, r_s.len });
+            const r = try std.fmt.parseFloat(f64, r_s);
+
             try scene.spheres.append(allocator, .{
                 .center = .{ x, y, z },
                 .radius = r,
@@ -258,34 +345,50 @@ pub fn parseLine(allocator: std.mem.Allocator, line: []const u8, scene: *Scene, 
             var val_it = std.mem.splitScalar(u8, vals, ' ');
             const color = try parseVec3It(&val_it);
             const direction = try parseVec3It(&val_it);
-            try scene.directional_lights.append(allocator, .{ .color = color, .direction = direction });
+            try scene.lights.append(allocator, .{
+                .directional_light = .{
+                    .color = color,
+                    .direction = direction,
+                },
+            });
         },
         .point_light => {
             var val_it = std.mem.splitScalar(u8, vals, ' ');
             const color = try parseVec3It(&val_it);
-            const direction = try parseVec3It(&val_it);
-            try scene.point_lights.append(allocator, .{ .color = color, .direction = direction });
+            const location = try parseVec3It(&val_it);
+            try scene.lights.append(allocator, .{
+                .point_light = .{
+                    .color = color,
+                    .loc = location,
+                },
+            });
         },
         .spot_light => {
             var val_it = std.mem.splitScalar(u8, vals, ' ');
-            try scene.spot_lights.append(allocator, .{
-                .color = try parseVec3It(&val_it),
-                .location = try parseVec3It(&val_it),
-                .direction = try parseVec3It(&val_it),
-                .angle1 = try std.fmt.parseFloat(f64, val_it.next().?),
-                .angle2 = try std.fmt.parseFloat(f64, val_it.next().?),
+
+            try scene.lights.append(
+                allocator,
+                .{ .spot_light = .{
+                    .color = try parseVec3It(&val_it),
+                    .location = try parseVec3It(&val_it),
+                    .direction = try parseVec3It(&val_it),
+                    .angle1 = try std.fmt.parseFloat(f64, val_it.next().?),
+                    .angle2 = try std.fmt.parseFloat(f64, val_it.next().?),
+                } },
+            );
+        },
+        .ambient_light => {
+            try scene.lights.append(allocator, .{
+                .ambient_light = .{ .intensity = try parseVec3(vals) },
             });
         },
-        .ambient_light => scene.ambient_light = try parseVec3(vals),
         .max_depth => scene.max_depth = try std.fmt.parseInt(u16, vals, 10),
     }
 }
 pub fn parseSceneFile(alloc: std.mem.Allocator, reader: *std.Io.Reader) !Scene {
     var scene = Scene{
         .spheres = try std.ArrayList(Sphere).initCapacity(alloc, 1),
-        .directional_lights = try std.ArrayList(DirectionalLight).initCapacity(alloc, 1),
-        .point_lights = try std.ArrayList(DirectionalLight).initCapacity(alloc, 1),
-        .spot_lights = try std.ArrayList(SpotLight).initCapacity(alloc, 1),
+        .lights = try std.ArrayList(Light).initCapacity(alloc, 1),
     };
 
     var material = Material{};
