@@ -15,9 +15,9 @@ pub const Light = union(enum) {
     spot_light: SpotLight,
     point_light: PointLight,
 
-    pub fn illuminate(light: Light, r: main.Ray, hit: main.HitRecord) Vec3 {
+    pub fn illuminate(light: Light, r: main.Ray, hit: main.HitRecord, scene: *const Scene) Vec3 {
         return switch (light) {
-            inline else => |l| l.illuminate(r, hit),
+            inline else => |l| l.illuminate(r, hit, scene),
         };
     }
 
@@ -30,7 +30,8 @@ pub const Light = union(enum) {
 
 pub const AmbientLight = struct {
     intensity: Vec3,
-    pub fn illuminate(self: AmbientLight, ray: main.Ray, hit_record: main.HitRecord) Vec3 {
+    pub fn illuminate(self: AmbientLight, ray: main.Ray, hit_record: main.HitRecord, scene: *const Scene) Vec3 {
+        _ = scene;
         _ = ray;
         return self.intensity * hit_record.material.ambient_color;
     }
@@ -44,19 +45,21 @@ pub const PointLight = struct {
     color: Vec3,
     loc: Vec3,
 
-    pub fn illuminate(self: PointLight, ray: main.Ray, hit_record: main.HitRecord) Vec3 {
+    pub fn illuminate(self: PointLight, ray: main.Ray, hit_record: main.HitRecord, scene: *const Scene) Vec3 {
+        const n = hit_record.surface_normal;
         const x = ray.eval(hit_record.distance);
-        // const to_light = self.loc - x;
-        // const dist_squared = vec3.dot(to_light, to_light);
-
         const r = vec3.norm(self.loc - x);
         const l = (self.loc - x) / vec3.splat(r);
-        const n = hit_record.surface_normal;
 
-        const E = vec3.splat(@max(0, vec3.dot(n, l))) * self.color / vec3.splat(r * r);
-        const k = hit_record.material.evaluate(vec3.unit(l), vec3.unit(ray.point - x), n);
-        // std.debug.print("E: {d}, k: {d}\n", .{ E[0], k[0] });
-        return E * k;
+        const srec = scene.hit(.{ .point = x, .dir = l }, 0.002, r);
+        if (srec != null) {
+            // we hit an object on the way to the light so we in shadow
+            return vec3.zero;
+        } else {
+            const E = vec3.splat(@max(0, vec3.dot(n, l))) * self.color / vec3.splat(r * r);
+            const k = hit_record.material.evaluate(vec3.unit(l), vec3.unit(ray.point - x), n);
+            return E * k;
+        }
     }
 
     pub fn format(self: @This(), writer: anytype) !void {
@@ -73,11 +76,17 @@ pub const DirectionalLight = struct {
     color: Vec3,
     direction: Vec3,
 
-    pub fn illuminate(self: DirectionalLight, ray: main.Ray, hit_record: main.HitRecord) Vec3 {
-        _ = self;
-        _ = ray;
-        _ = hit_record;
-        return vec3.zero;
+    pub fn illuminate(self: DirectionalLight, ray: main.Ray, hit_record: main.HitRecord, scene: *const Scene) Vec3 {
+        _ = scene;
+        const x = ray.eval(hit_record.distance);
+        const l = vec3.unit(-self.direction);
+        const n = hit_record.surface_normal;
+
+        const E = self.color * vec3.splat(@max(0, vec3.dot(n, l)));
+        const v = vec3.unit(ray.point - x);
+        const k = hit_record.material.evaluate(vec3.unit(l), v, n);
+
+        return E * k;
     }
 
     pub fn format(self: @This(), writer: anytype) !void {
@@ -98,10 +107,11 @@ pub const SpotLight = struct {
     angle1: f64,
     angle2: f64,
 
-    pub fn illuminate(self: SpotLight, ray: main.Ray, hit_record: main.HitRecord) Vec3 {
+    pub fn illuminate(self: SpotLight, ray: main.Ray, hit_record: main.HitRecord, scene: *const Scene) Vec3 {
         _ = self;
         _ = ray;
         _ = hit_record;
+        _ = scene;
         return vec3.zero;
     }
 
@@ -137,6 +147,46 @@ pub const Scene = struct {
     lights: std.ArrayList(Light),
 
     max_depth: u16 = 5,
+
+    pub fn shadeRay(self: Scene, ray: main.Ray, bounces: u16) Vec3 {
+        const hit_obj: ?main.HitRecord = self.hit(ray, 0, std.math.inf(f64));
+        var color: Vec3 = self.background;
+
+        // we got a hit
+        if (hit_obj != null) {
+            color = vec3.zero;
+            for (self.lights.items) |light| {
+                // Reflect
+                const n = hit_obj.?.surface_normal;
+                const reflection = ray.dir - vec3.splat(2 * vec3.dot(ray.dir, n)) * n;
+                color += light.illuminate(ray, hit_obj.?, &self);
+                if (bounces > 0) {
+                    const p = ray.eval(hit_obj.?.distance);
+                    color += hit_obj.?.material.specular_color * self.shadeRay(.{ .dir = reflection, .point = p }, bounces - 1);
+                }
+            }
+        }
+        return color;
+    }
+    // Trace a ray through the scene from t = [0 + eps, r)
+    pub fn hit(self: Scene, ray: main.Ray, eps: f64, r: f64) ?main.HitRecord {
+        const eps_ray: main.Ray = .{
+            .dir = ray.dir,
+            .point = ray.point + ray.dir * vec3.splat(eps),
+        };
+
+        var closest_dist = std.math.inf(f64);
+        var closest_hit: ?main.HitRecord = null;
+        for (self.spheres.items) |sphere| {
+            const hit_record = main.raySphereIntersect(eps_ray, sphere);
+
+            if (hit_record != null and hit_record.?.distance <= r and hit_record.?.distance < closest_dist) {
+                closest_dist = hit_record.?.distance;
+                closest_hit = hit_record.?;
+            }
+        }
+        return closest_hit;
+    }
 
     pub fn format(
         self: @This(),

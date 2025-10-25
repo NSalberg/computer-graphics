@@ -64,6 +64,7 @@ pub fn raySphereIntersect(ray: Ray, sphere: scene.Sphere) ?HitRecord {
         } else return null;
 
         const p = ray.eval(t);
+
         return HitRecord{
             .distance = t,
             .material = sphere.material,
@@ -99,26 +100,7 @@ pub fn traceScene(allocator: std.mem.Allocator, the_scene: scene.Scene) !Image {
             const ray_dir: Vec3 = vec3.unit(p - s.camera_pos);
             const ray = Ray{ .point = s.camera_pos, .dir = ray_dir };
 
-            var color: Vec3 = s.background;
-            var closest_dist = std.math.inf(f64);
-            var closest_hit: HitRecord = undefined;
-            for (s.spheres.items) |sphere| {
-                const hit_record = raySphereIntersect(ray, sphere);
-
-                if (hit_record != null) {
-                    if (hit_record.?.distance < closest_dist) {
-                        closest_dist = hit_record.?.distance;
-                        closest_hit = hit_record.?;
-                    }
-                }
-            }
-            // we got a hit
-            if (closest_dist != std.math.inf(f64)) {
-                color = vec3.zero;
-                for (s.lights.items) |light| {
-                    color += light.illuminate(ray, closest_hit);
-                }
-            }
+            const color = s.shadeRay(ray, 0);
 
             output_img.setPixel(@intCast(i), @intCast(j), color);
         }
@@ -153,6 +135,9 @@ pub fn main() !void {
 
     var timer = try std.time.Timer.start();
     var output_img = try traceScene(alloc, scene_);
+
+    // std.debug.print("Sizeof spherep{}\n", .{@sizeOf(SphereP)});
+    std.debug.print("Sizeof sphere{}\n", .{@sizeOf(scene.Sphere)});
     std.debug.print("Rendering took {d:.6} s\n", .{@as(f64, @floatFromInt(timer.lap())) / 1e9});
 
     std.debug.print("output: {s}\n", .{scene_.output_image});
