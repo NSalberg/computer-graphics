@@ -171,18 +171,10 @@ pub const Material = struct {
     index_of_refraction: f64 = 1,
 
     pub fn evaluate(self: Material, l: Vec3, v: Vec3, n: Vec3) Vec3 {
-        _ = l;
-        _ = v;
-        _ = n;
-
-        // const h = vec3.unit(l + v);
+        const h = vec3.unit(l + v);
         const diffuse = self.diffuse_color * vec3.splat(pi_inv);
-
-        // Blinn-Phong
-        // const specular = self.specular_color * vec3.splat(std.math.pow(f64, @max(0, vec3.dot(n, h)), self.specular_coefficient));
-        // std.debug.print("k {d} {d}\n", .{ diffuse[0], specular[0] });
-        // return diffuse + specular;
-        return diffuse;
+        const specular = self.specular_color * vec3.splat(std.math.pow(f64, @max(0, vec3.dot(n, h)), self.specular_coefficient));
+        return diffuse + specular;
     }
 
     pub fn format(
