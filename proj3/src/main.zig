@@ -128,14 +128,4 @@ pub fn main() !void {
 
     std.debug.print("output: {s}\n", .{scene_.output_image});
     try output_img.write(scene_.output_image, alloc);
-
-    // auto t_start = std::chrono::high_resolution_clock::now();
-    // for (int i = 0; i < img_width; i++){
-    //   for (int j = 0; j < img_height; j++){
-    //     //TODO - Understand: In what way does this assumes the basis is orthonormal?
-    //   }
-    // }
-    // auto t_end = std::chrono::high_resolution_clock::now();
-    // printf("Rendering took %.2f ms\n",std::chrono::duration<double, std::milli>(t_end-t_start).count());
-    //
 }

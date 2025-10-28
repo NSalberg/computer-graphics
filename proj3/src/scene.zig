@@ -164,7 +164,7 @@ pub const Scene = struct {
                 color += light.illuminate(ray, hit_obj.?, &self);
                 if (bounces > 0) {
                     const n = hit_obj.?.surface_normal;
-                    const reflection = ray.dir - vec3.splat(2 * vec3.dot(ray.dir, n)) * n;
+                    const reflection = vec3.reflect(ray.dir, n);
                     // bounce_point + eps * normal
                     const p = ray.eval(hit_obj.?.distance) + n * vec3.splat(0.001);
                     color += hit_obj.?.material.specular_color * self.shadeRay(.{ .dir = reflection, .point = p }, bounces - 1);
