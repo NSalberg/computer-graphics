@@ -19,7 +19,7 @@ pub const Ray = struct {
 };
 
 pub const HitRecord = struct {
-    material: scene.Material,
+    material_idx: u16,
     distance: f64,
     surface_normal: Vec3,
 };
@@ -53,7 +53,7 @@ pub fn raySphereIntersect(ray: Ray, sphere: scene.Sphere) ?HitRecord {
 
         return HitRecord{
             .distance = t,
-            .material = sphere.material,
+            .material_idx = sphere.material_idx,
             .surface_normal = vec3.unit(p - sphere.center),
         };
     }

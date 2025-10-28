@@ -31,9 +31,9 @@ pub const Light = union(enum) {
 pub const AmbientLight = struct {
     intensity: Vec3,
     pub fn illuminate(self: AmbientLight, ray: main.Ray, hit_record: main.HitRecord, scene: *const Scene) Vec3 {
-        _ = scene;
         _ = ray;
-        return self.intensity * hit_record.material.ambient_color;
+        const material = scene.materials.items[hit_record.material_idx];
+        return self.intensity * material.ambient_color;
     }
 
     pub fn format(self: @This(), writer: anytype) !void {
@@ -48,16 +48,19 @@ pub const PointLight = struct {
     pub fn illuminate(self: PointLight, ray: main.Ray, hit_record: main.HitRecord, scene: *const Scene) Vec3 {
         const n = hit_record.surface_normal;
         const x = ray.eval(hit_record.distance);
+        const dir = self.loc - x;
         const r = vec3.norm(self.loc - x);
-        const l = (self.loc - x) / vec3.splat(r);
+        const l = (dir) / vec3.splat(r);
 
         const srec = scene.hit(.{ .point = x, .dir = l }, 0.002, r);
         if (srec != null) {
             // we hit an object on the way to the light so we in shadow
             return vec3.zero;
         } else {
-            const E = vec3.splat(@max(0, vec3.dot(n, l))) * self.color / vec3.splat(r * r);
-            const k = hit_record.material.evaluate(vec3.unit(l), vec3.unit(ray.point - x), n);
+            const E = vec3.splat(@max(0, vec3.dot(n, l))) * self.color * vec3.splat(1 / (r * r));
+
+            const material = scene.materials.items[hit_record.material_idx];
+            const k = material.evaluate(vec3.unit(l), vec3.unit(ray.point - x), n);
             return E * k;
         }
     }
@@ -72,6 +75,7 @@ pub const PointLight = struct {
         );
     }
 };
+
 pub const DirectionalLight = struct {
     color: Vec3,
     direction: Vec3,
@@ -88,7 +92,9 @@ pub const DirectionalLight = struct {
         } else {
             const E = self.color * vec3.splat(@max(0, vec3.dot(n, l)));
             const v = vec3.unit(ray.point - x);
-            const k = hit_record.material.evaluate(vec3.unit(l), v, n);
+
+            const material = scene.materials.items[hit_record.material_idx];
+            const k = material.evaluate(vec3.unit(l), v, n);
             return E * k;
         }
     }
@@ -150,6 +156,8 @@ pub const Scene = struct {
 
     lights: std.ArrayList(Light),
 
+    materials: std.ArrayList(Material),
+
     max_depth: u16 = 5,
 
     pub fn shadeRay(self: Scene, ray: main.Ray, bounces: u16) Vec3 {
@@ -167,7 +175,9 @@ pub const Scene = struct {
                     const reflection = vec3.reflect(ray.dir, n);
                     // bounce_point + eps * normal
                     const p = ray.eval(hit_obj.?.distance) + n * vec3.splat(0.001);
-                    color += hit_obj.?.material.specular_color * self.shadeRay(.{ .dir = reflection, .point = p }, bounces - 1);
+
+                    const material = self.materials.items[hit_obj.?.material_idx];
+                    color += material.specular_color * self.shadeRay(.{ .dir = reflection, .point = p }, bounces - 1);
                 }
             }
         }
@@ -260,7 +270,7 @@ pub const Sphere = struct {
     center: Vec3,
     radius: f64,
     // This might be better to store as a pointer / index into another array
-    material: Material,
+    material_idx: u16,
 
     pub fn init(center: Vec3.Vec3, radius: f64) Sphere {
         assert(radius > 0);
@@ -274,12 +284,12 @@ pub const Sphere = struct {
         self: @This(),
         writer: *std.Io.Writer,
     ) std.Io.Writer.Error!void {
-        try writer.print("Sphere: {d}, {d}, {d}, {d}, \n {f}\n", .{
+        try writer.print("Sphere: {d}, {d}, {d}, {d}, matidx:{d}\n", .{
             self.center[0],
             self.center[1],
             self.center[2],
             self.radius,
-            self.material,
+            self.material_idx,
         });
     }
 };
@@ -391,12 +401,18 @@ pub fn parseLine(allocator: std.mem.Allocator, line: []const u8, scene: *Scene, 
             try scene.spheres.append(allocator, .{
                 .center = .{ x, y, z },
                 .radius = r,
-                .material = material.*,
+                .material_idx = @as(u16, @intCast(scene.materials.items.len)) - 1,
             });
         },
 
         .background => scene.background = try parseVec3(vals),
-        .material => material.* = try parseMaterial(vals),
+        .material => {
+            material.* = try parseMaterial(vals);
+            scene.materials.appendBounded(material.*) catch |err| {
+                std.debug.print("Too many materials", .{});
+                return err;
+            };
+        },
         .directional_light => {
             var val_it = std.mem.splitScalar(u8, vals, ' ');
             const color = try parseVec3It(&val_it);
@@ -442,9 +458,11 @@ pub fn parseLine(allocator: std.mem.Allocator, line: []const u8, scene: *Scene, 
     }
 }
 pub fn parseSceneFile(alloc: std.mem.Allocator, reader: *std.Io.Reader) !Scene {
+    const material_buffer = try alloc.alloc(Material, std.math.pow(usize, 2, 16));
     var scene = Scene{
         .spheres = try std.ArrayList(Sphere).initCapacity(alloc, 1),
         .lights = try std.ArrayList(Light).initCapacity(alloc, 1),
+        .materials = std.ArrayList(Material).initBuffer(material_buffer),
     };
 
     var material = Material{};
