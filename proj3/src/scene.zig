@@ -41,7 +41,7 @@ pub const Scene = struct {
         // we got a hit
         color = vec3.zero;
         for (self.lights.items) |light| {
-            color += light.illuminate(ray, hit_obj.?, &self);
+            color += light.illuminate(ray, hit_obj.?, self);
             // Reflect
             if (bounces > 0) {
                 const n = hit_obj.?.surface_normal;

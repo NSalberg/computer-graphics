@@ -16,6 +16,7 @@ pub const SceneCommands = enum {
     camera_up,
     camera_fov_ha,
     film_resolution,
+    samples_per_pixel,
     output_image,
     sphere,
     background,
@@ -171,6 +172,7 @@ pub fn parseLine(allocator: std.mem.Allocator, line: []const u8, s: *Scene, mate
             });
         },
         .max_depth => s.camera.max_depth = try std.fmt.parseInt(u16, vals, 10),
+        .samples_per_pixel => s.camera.samples_per_pixel = try std.fmt.parseInt(u32, vals, 10),
     }
 }
 pub fn parseSceneFile(alloc: std.mem.Allocator, reader: *std.Io.Reader) !Scene {
@@ -191,6 +193,6 @@ pub fn parseSceneFile(alloc: std.mem.Allocator, reader: *std.Io.Reader) !Scene {
     }) |line| {
         try parseLine(alloc, line, &s, &material);
     }
-    s.camera.right = vec3.unit(vec3.cross(s.camera.up, s.camera.fwd));
+    s.camera.init();
     return s;
 }
