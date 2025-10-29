@@ -30,7 +30,7 @@ pub const Scene = struct {
         return self.camera.render(alloc, self);
     }
 
-    pub fn shadeRay(self: Scene, ray: main.Ray, bounces: u16) Vec3 {
+    pub fn shadeRay(self: *const Scene, ray: main.Ray, bounces: u16) Vec3 {
         const hit_obj: ?main.HitRecord = self.hit(ray, 0, std.math.inf(f64));
         var color: Vec3 = self.background;
 
@@ -50,7 +50,13 @@ pub const Scene = struct {
                 const p = ray.eval(hit_obj.?.distance) + n * vec3.splat(0.001);
 
                 const material = self.materials.items[hit_obj.?.material_idx];
-                color += material.specular_color * self.shadeRay(.{ .dir = reflection, .point = p }, bounces - 1);
+
+                const bounce_color = material.specular_color * self.shadeRay(.{ .dir = reflection, .point = p }, bounces - 1);
+                color += bounce_color;
+
+                if (vec3.magnitude2(bounce_color) < 0.05) {
+                    return color;
+                }
             }
         }
         return color;
