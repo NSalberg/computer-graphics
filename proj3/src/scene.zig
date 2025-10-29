@@ -43,21 +43,20 @@ pub const Scene = struct {
         for (self.lights.items) |light| {
             color += light.illuminate(ray, hit_obj.?, self);
             // Reflect
-            if (bounces > 0) {
-                const n = hit_obj.?.surface_normal;
-                const reflection = vec3.reflect(ray.dir, n);
-                // bounce_point + eps * normal
-                const p = ray.eval(hit_obj.?.distance) + n * vec3.splat(0.001);
+        }
+        if (bounces > 0) {
+            const n = hit_obj.?.surface_normal;
+            const reflection = vec3.reflect(ray.dir, n);
+            // bounce_point + eps * normal
+            const p = ray.eval(hit_obj.?.distance) + n * vec3.splat(0.001);
 
-                const material = self.materials.items[hit_obj.?.material_idx];
-
-                const bounce_color = material.specular_color * self.shadeRay(.{ .dir = reflection, .point = p }, bounces - 1);
-                color += bounce_color;
-
-                if (vec3.magnitude2(bounce_color) < 0.05) {
-                    return color;
-                }
+            const material = self.materials.items[hit_obj.?.material_idx];
+            if (vec3.magnitude2(material.specular_color) < 0.100) {
+                return color;
             }
+
+            const bounce_color = material.specular_color * self.shadeRay(.{ .dir = reflection, .point = p }, bounces - 1);
+            color += bounce_color;
         }
         return color;
     }
