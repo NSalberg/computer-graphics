@@ -121,19 +121,32 @@ pub const Scene = struct {
             // Reflect
         }
         if (bounces > 0) {
+            // Reflect
             const n = hit_obj.?.surface_normal;
-            const reflection = vec3.reflect(ray.dir, n);
-            // bounce_point + eps * normal
-            const p = ray.eval(hit_obj.?.distance) + n * vec3.splat(0.001);
-
             const material = self.materials.items[hit_obj.?.material_idx];
 
-            if (vec3.magnitude2(material.specular_color) < 0.001) {
-                return color;
+            const p = ray.eval(hit_obj.?.distance);
+            if (vec3.magnitude2(material.specular_color) > 0.001) {
+                const reflection = vec3.reflect(ray.dir, n);
+                // bounce_point + eps * normal
+
+                const bounce_color = material.specular_color * self.shadeRay(.{ .dir = reflection, .origin = p + n * vec3.splat(0.001) }, bounces - 1);
+                color += bounce_color;
             }
 
-            const bounce_color = material.specular_color * self.shadeRay(.{ .dir = reflection, .origin = p }, bounces - 1);
-            color += bounce_color;
+            if (vec3.magnitude2(material.transmissive_color) > 0.001) {
+                const entering = vec3.dot(ray.dir, n) < 0;
+                const etai_over_etat = if (entering)
+                    1.0 / material.index_of_refraction // air -> material
+                else
+                    material.index_of_refraction; // material -> air
+
+                const normal = if (entering) n else -n;
+
+                const refraction = vec3.refract(ray.dir, normal, etai_over_etat);
+                const bounce_color = material.transmissive_color * self.shadeRay(.{ .dir = refraction, .origin = p + refraction * vec3.splat(0.001) }, bounces - 1);
+                color += bounce_color;
+            }
         }
         return color;
     }

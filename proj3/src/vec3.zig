@@ -115,7 +115,7 @@ pub fn reflect(v: Vec3, normal: Vec3) Vec3 {
 // etai_over_etat = relative refractive index
 
 pub fn refract(uv: Vec3, n: Vec3, relative_refraction: f64) Vec3 {
-    const cos_t = if (dot(-uv, n) < 1.0) dot(-uv, n) else 1.0;
+    const cos_t = @min(dot(-uv, n), 1.0);
     const r_out_perp: Vec3 = splat(relative_refraction) * (uv + splat(cos_t) * n);
     const r_out_parallel = -splat(@sqrt(@abs(1.0 - magnitude2(r_out_perp)))) * n;
     return r_out_perp + r_out_parallel;
