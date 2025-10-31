@@ -11,6 +11,7 @@ const Light = @import("lights.zig").Light;
 const Image = @import("image.zig").Image;
 
 pub const SceneCommands = enum {
+    camera,
     camera_pos,
     camera_fwd,
     camera_up,
@@ -87,11 +88,19 @@ pub fn parseLine(allocator: std.mem.Allocator, line: []const u8, s: *Scene, mate
         return error.UnknownSceneCommand;
     }
 
-    const vals = std.mem.trim(u8, line_it.next().?, " ");
+    const trimmed = std.mem.trim(u8, line_it.next().?, " ");
+    const vals = std.mem.collapseRepeats(u8, @constCast(trimmed), ' ');
     errdefer {
         std.debug.print("Unable to parse line:  {s}\n", .{line});
     }
     switch (command.?) {
+        .camera => {
+            var val_it = std.mem.splitScalar(u8, vals, ' ');
+            s.camera.pos = try parseVec3It(&val_it);
+            s.camera.fwd = try parseVec3It(&val_it);
+            s.camera.up = try parseVec3It(&val_it);
+            s.camera.fov_ha = try std.fmt.parseFloat(f32, val_it.next().?);
+        },
         .camera_pos => s.camera.pos = try parseVec3(vals),
         .camera_fwd => s.camera.fwd = try parseVec3(vals),
         .camera_up => s.camera.up = try parseVec3(vals),
@@ -181,7 +190,7 @@ pub fn parseLine(allocator: std.mem.Allocator, line: []const u8, s: *Scene, mate
         .max_depth => s.camera.max_depth = try std.fmt.parseInt(u16, vals, 10),
         .samples_per_pixel => s.camera.samples_per_pixel = try std.fmt.parseInt(u32, vals, 10),
         .max_vertices => {
-            const max_vertices = try std.fmt.parseInt(u32, vals, 10);
+            const max_vertices = try std.fmt.parseInt(u64, vals, 10);
             try s.vertices.ensureTotalCapacity(allocator, max_vertices);
         },
         .vertex => {
@@ -193,8 +202,8 @@ pub fn parseLine(allocator: std.mem.Allocator, line: []const u8, s: *Scene, mate
             s.vertices.appendAssumeCapacity(vertex);
         },
         .max_normals => {
-            const max_normals = try std.fmt.parseInt(u32, vals, 10);
-            try s.vertices.ensureTotalCapacity(allocator, max_normals);
+            const max_normals = try std.fmt.parseInt(u64, vals, 10);
+            try s.normals.ensureTotalCapacity(allocator, max_normals);
         },
 
         .normal => {
@@ -202,8 +211,8 @@ pub fn parseLine(allocator: std.mem.Allocator, line: []const u8, s: *Scene, mate
                 @branchHint(.unlikely);
                 return error.NormalBeforeMaxNormals;
             }
-            const vertex = try parseVec3(vals);
-            s.vertices.appendAssumeCapacity(vertex);
+            const normal = try parseVec3(vals);
+            s.normals.appendAssumeCapacity(normal);
         },
         .triangle => {
             var val_it = std.mem.splitScalar(u8, vals, ' ');
@@ -223,9 +232,27 @@ pub fn parseLine(allocator: std.mem.Allocator, line: []const u8, s: *Scene, mate
             );
             try s.triangles.append(allocator, tri);
         },
-        else => {
-            return error.CommandNotImplemented;
+        .normal_triangle => {
+            var val_it = std.mem.splitScalar(u8, vals, ' ');
+            const v0_idx = try std.fmt.parseInt(usize, val_it.first(), 0);
+            const v1_idx = try std.fmt.parseInt(usize, val_it.next().?, 0);
+            const v2_idx = try std.fmt.parseInt(usize, val_it.next().?, 0);
+
+            const v0 = s.vertices.items[v0_idx];
+            const v1 = s.vertices.items[v1_idx];
+            const v2 = s.vertices.items[v2_idx];
+
+            const tri = scene.Triangle.init(
+                v0,
+                v1,
+                v2,
+                @as(u16, @intCast(s.materials.items.len)) - 1,
+            );
+            try s.triangles.append(allocator, tri);
         },
+        // else => {
+        //     return error.CommandNotImplemented;
+        // },
     }
 }
 pub fn parseSceneFile(alloc: std.mem.Allocator, reader: *std.Io.Reader) !Scene {

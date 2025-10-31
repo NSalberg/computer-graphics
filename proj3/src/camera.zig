@@ -72,7 +72,6 @@ pub const Camera = struct {
         var pool: std.Thread.Pool = undefined;
         try pool.init(.{
             .allocator = allocator,
-            .n_jobs = 4,
         });
         defer pool.deinit();
 

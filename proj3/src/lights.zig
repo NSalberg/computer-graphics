@@ -45,10 +45,11 @@ pub const PointLight = struct {
         const n = hit_record.surface_normal;
         const x = ray.eval(hit_record.distance);
         const dir = self.loc - x;
-        const r = vec3.norm(self.loc - x);
+        const r = vec3.norm(dir);
         const l = (dir) / vec3.splat(r);
 
         const srec = scene.hit(.{ .origin = x, .dir = l }, 0.002, r);
+
         if (srec != null) {
             @branchHint(.unlikely);
             // we hit an object on the way to the light so we in shadow
