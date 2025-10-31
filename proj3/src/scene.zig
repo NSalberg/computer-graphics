@@ -32,7 +32,7 @@ pub const Triangle = struct {
     pub fn hit(self: Triangle, ray: main.Ray, ray_tmin: f64, ray_tmax: f64) ?main.HitRecord {
         const e1 = self.v1 - self.v0;
         const e2 = self.v2 - self.v0;
-        const ray_cross_e2 = vec3.unit(vec3.cross(ray.dir, e2));
+        const ray_cross_e2 = vec3.cross(ray.dir, e2);
         const det = vec3.dot(e1, ray_cross_e2);
         if (det > -std.math.floatEps(f64) and det < std.math.floatEps(f64)) {
             return null;
@@ -57,10 +57,16 @@ pub const Triangle = struct {
             return null;
         }
 
+        // Account for normals not facing the camera
+        var normal = vec3.unit(vec3.cross(e1, e2));
+        if (vec3.dot(normal, ray.dir) > 0) {
+            normal = -normal;
+        }
+
         return main.HitRecord{
             .distance = t,
             .material_idx = self.material_idx,
-            .surface_normal = vec3.cross(e1, e1),
+            .surface_normal = normal,
         };
     }
 
