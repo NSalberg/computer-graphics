@@ -26,6 +26,13 @@ pub const SceneCommands = enum {
     spot_light,
     ambient_light,
     max_depth,
+    // Triangle shit
+    max_vertices,
+    max_normals,
+    vertex,
+    normal,
+    triangle,
+    normal_triangle,
 };
 
 pub fn parseVec3(vals: []const u8) !Vec3 {
@@ -173,17 +180,67 @@ pub fn parseLine(allocator: std.mem.Allocator, line: []const u8, s: *Scene, mate
         },
         .max_depth => s.camera.max_depth = try std.fmt.parseInt(u16, vals, 10),
         .samples_per_pixel => s.camera.samples_per_pixel = try std.fmt.parseInt(u32, vals, 10),
+        .max_vertices => {
+            const max_vertices = try std.fmt.parseInt(u32, vals, 10);
+            try s.vertices.ensureTotalCapacity(allocator, max_vertices);
+        },
+        .vertex => {
+            if (s.vertices.capacity == 0) {
+                @branchHint(.unlikely);
+                return error.VertexBeforeMaxVertices;
+            }
+            const vertex = try parseVec3(vals);
+            s.vertices.appendAssumeCapacity(vertex);
+        },
+        .max_normals => {
+            const max_normals = try std.fmt.parseInt(u32, vals, 10);
+            try s.vertices.ensureTotalCapacity(allocator, max_normals);
+        },
+
+        .normal => {
+            if (s.normals.capacity == 0) {
+                @branchHint(.unlikely);
+                return error.NormalBeforeMaxNormals;
+            }
+            const vertex = try parseVec3(vals);
+            s.vertices.appendAssumeCapacity(vertex);
+        },
+        .triangle => {
+            var val_it = std.mem.splitScalar(u8, vals, ' ');
+            const v0_idx = try std.fmt.parseInt(usize, val_it.first(), 0);
+            const v1_idx = try std.fmt.parseInt(usize, val_it.next().?, 0);
+            const v2_idx = try std.fmt.parseInt(usize, val_it.next().?, 0);
+
+            const v0 = s.vertices.items[v0_idx];
+            const v1 = s.vertices.items[v1_idx];
+            const v2 = s.vertices.items[v2_idx];
+
+            const tri = scene.Triangle.init(
+                v0,
+                v1,
+                v2,
+                @as(u16, @intCast(s.materials.items.len)) - 1,
+            );
+            try s.triangles.append(allocator, tri);
+        },
+        else => {
+            return error.CommandNotImplemented;
+        },
     }
 }
 pub fn parseSceneFile(alloc: std.mem.Allocator, reader: *std.Io.Reader) !Scene {
-    const material_buffer = try alloc.alloc(Material, std.math.pow(usize, 2, 16));
+    const material_buffer = try alloc.alloc(Material, std.math.maxInt(u16));
     var s = scene.Scene{
         .spheres = try std.ArrayList(Sphere).initCapacity(alloc, 1),
+        .triangles = try std.ArrayList(scene.Triangle).initCapacity(alloc, 1),
         .lights = try std.ArrayList(Light).initCapacity(alloc, 1),
         .materials = std.ArrayList(Material).initBuffer(material_buffer),
+        .vertices = try std.ArrayList(Vec3).initCapacity(alloc, 0),
+        .normals = try std.ArrayList(Vec3).initCapacity(alloc, 0),
     };
 
     var material = Material{};
+    s.materials.appendAssumeCapacity(material);
     while (reader.takeDelimiterInclusive('\n') catch |err| switch (err) {
         error.EndOfStream => blk: {
             try parseLine(alloc, try reader.take(reader.end - reader.seek), &s, &material);

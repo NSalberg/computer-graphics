@@ -10,12 +10,12 @@ const zstbi = @import("zstbi");
 const Image = @import("image.zig").Image;
 
 pub const Ray = struct {
-    point: Vec3,
+    origin: Vec3,
     dir: Vec3,
 
     /// point + t * dir
     pub fn eval(self: Ray, t: f64) Vec3 {
-        return self.point + @as(Vec3, @splat(t)) * self.dir;
+        return self.origin + @as(Vec3, @splat(t)) * self.dir;
     }
 };
 
@@ -28,6 +28,8 @@ pub const HitRecord = struct {
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{ .thread_safe = true }){};
     const alloc = gpa.allocator();
+    var arena = std.heap.ArenaAllocator.init(alloc);
+
     var args = try std.process.argsWithAllocator(alloc);
     _ = args.skip();
 
@@ -51,7 +53,7 @@ pub fn main() !void {
     // defer zstbi.deinit();
 
     var timer = try std.time.Timer.start();
-    var output_img = try scene_.render(alloc);
+    var output_img = try scene_.render(arena.allocator());
 
     // std.debug.print("Sizeof spherep{}\n", .{@sizeOf(SphereP)});
     std.debug.print("Sizeof sphere{}\n", .{@sizeOf(scene.Sphere)});

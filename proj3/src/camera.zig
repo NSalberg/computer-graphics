@@ -5,6 +5,8 @@ const scene = @import("scene.zig");
 const Image = @import("image.zig").Image;
 const main = @import("main.zig");
 
+const Progress = std.Progress;
+
 var prng = std.Random.Xoshiro256.init(42);
 const rand = prng.random();
 
@@ -15,7 +17,7 @@ pub const Camera = struct {
     right: Vec3 = Vec3{ -1, 0, 0 },
     fov_ha: f32 = 45,
     film_resolution: struct { u16, u16 } = .{ 640, 480 },
-    samples_per_pixel: u32 = 5,
+    samples_per_pixel: u32 = 25,
     max_depth: u16 = 5,
 
     inv_img_width: ?f32 = null,
@@ -52,7 +54,7 @@ pub const Camera = struct {
 
         const p: Vec3 = self.pos - @as(Vec3, @splat(self.d.?)) * self.fwd + @as(Vec3, @splat(u)) * self.right + @as(Vec3, @splat(v)) * self.up;
         const ray_dir: Vec3 = vec3.unit(p - self.pos);
-        return main.Ray{ .point = self.pos, .dir = ray_dir };
+        return main.Ray{ .origin = self.pos, .dir = ray_dir };
     }
 
     pub fn render(self: Camera, allocator: std.mem.Allocator, s: scene.Scene) !Image {
@@ -61,7 +63,10 @@ pub const Camera = struct {
         var output_img = try Image.init(allocator, img_width, img_height);
         const samples_per_pix_inv: f64 = 1.0 / @as(f64, @floatFromInt(self.samples_per_pixel));
 
+        // const root = Progress.start(.{ .refresh_rate_ns = 200 * std.time.ns_per_ms, .root_name = "Rendering Scene", .estimated_total_items = img_width });
+        // const line = root.start("Rendering Line", img_width);
         for (0..img_width) |i| {
+            // if (i % 10 == 0) line.setCompletedItems(i);
             for (0..img_height) |j| {
                 var color = vec3.zero;
                 for (0..self.samples_per_pixel) |_| {

@@ -48,7 +48,7 @@ pub const PointLight = struct {
         const r = vec3.norm(self.loc - x);
         const l = (dir) / vec3.splat(r);
 
-        const srec = scene.hit(.{ .point = x, .dir = l }, 0.002, r);
+        const srec = scene.hit(.{ .origin = x, .dir = l }, 0.002, r);
         if (srec != null) {
             // we hit an object on the way to the light so we in shadow
             return vec3.zero;
@@ -56,7 +56,7 @@ pub const PointLight = struct {
             const E = vec3.splat(@max(0, vec3.dot(n, l))) * self.color * vec3.splat(1 / (r * r));
 
             const material = scene.materials.items[hit_record.material_idx];
-            const k = material.evaluate(vec3.unit(l), vec3.unit(ray.point - x), n);
+            const k = material.evaluate(vec3.unit(l), vec3.unit(ray.origin - x), n);
             return E * k;
         }
     }
@@ -81,13 +81,13 @@ pub const DirectionalLight = struct {
         const l = vec3.unit(-self.direction);
         const n = hit_record.surface_normal;
 
-        const srec = scene.hit(.{ .point = x, .dir = -self.direction }, 0.002, std.math.inf(f64));
+        const srec = scene.hit(.{ .origin = x, .dir = -self.direction }, 0.002, std.math.inf(f64));
         if (srec != null) {
             // we hit an object on the way to the light so we in shadow
             return vec3.zero;
         } else {
             const E = self.color * vec3.splat(@max(0, vec3.dot(n, l)));
-            const v = vec3.unit(ray.point - x);
+            const v = vec3.unit(ray.origin - x);
 
             const material = scene.materials.items[hit_record.material_idx];
             const k = material.evaluate(vec3.unit(l), v, n);

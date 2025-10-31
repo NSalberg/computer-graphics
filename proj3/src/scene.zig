@@ -9,6 +9,72 @@ const assert = std.debug.assert;
 
 pub const Object = union {
     sphere: Sphere,
+    triangel: Triangle,
+};
+
+pub const Triangle = struct {
+    v0: Vec3,
+    v1: Vec3,
+    v2: Vec3,
+    centroid: Vec3,
+    material_idx: u16,
+
+    pub fn init(v0: Vec3, v1: Vec3, v2: Vec3, material_idx: u16) Triangle {
+        return .{
+            .v0 = v0,
+            .v1 = v1,
+            .v2 = v2,
+            .centroid = (v0 + v1 + v2) * vec3.splat(@as(f64, 1.0 / 3.0)),
+            .material_idx = material_idx,
+        };
+    }
+
+    pub fn hit(self: Triangle, ray: main.Ray, ray_tmin: f64, ray_tmax: f64) ?main.HitRecord {
+        const e1 = self.v1 - self.v0;
+        const e2 = self.v2 - self.v0;
+        const ray_cross_e2 = vec3.unit(vec3.cross(ray.dir, e2));
+        const det = vec3.dot(e1, ray_cross_e2);
+        if (det > -std.math.floatEps(f64) and det < std.math.floatEps(f64)) {
+            return null;
+        }
+        const inv_det = 1.0 / det;
+        const s = ray.origin - self.v0;
+        const u = inv_det * vec3.dot(s, ray_cross_e2);
+
+        if (u < 0.0 or u > 1.0) {
+            return null;
+        }
+
+        const s_cross_e1 = vec3.cross(s, e1);
+        const v = inv_det * vec3.dot(ray.dir, s_cross_e1);
+        if (v < 0 or u + v > 1) {
+            return null;
+        }
+
+        const t = inv_det * vec3.dot(e2, s_cross_e1);
+
+        if (t < ray_tmin or t > ray_tmax) {
+            return null;
+        }
+
+        return main.HitRecord{
+            .distance = t,
+            .material_idx = self.material_idx,
+            .surface_normal = vec3.cross(e1, e1),
+        };
+    }
+
+    pub fn format(
+        self: @This(),
+        writer: *std.Io.Writer,
+    ) std.Io.Writer.Error!void {
+        try writer.print("triangle: {d}, {d}, {d}, {d}\n", .{
+            self.v0,
+            self.v1,
+            self.v2,
+            self.centroid,
+        });
+    }
 };
 
 pub const Scene = struct {
@@ -19,12 +85,16 @@ pub const Scene = struct {
 
     // Objects
     spheres: std.ArrayList(Sphere),
+    triangles: std.ArrayList(Triangle),
 
     background: Vec3 = Vec3{ 0, 0, 0 },
 
     lights: std.ArrayList(Light),
 
     materials: std.ArrayList(Material),
+
+    vertices: std.ArrayList(Vec3),
+    normals: std.ArrayList(Vec3),
 
     pub fn render(self: Scene, alloc: std.mem.Allocator) !Image {
         return self.camera.render(alloc, self);
@@ -51,11 +121,12 @@ pub const Scene = struct {
             const p = ray.eval(hit_obj.?.distance) + n * vec3.splat(0.001);
 
             const material = self.materials.items[hit_obj.?.material_idx];
-            if (vec3.magnitude2(material.specular_color) < 0.100) {
+
+            if (vec3.magnitude2(material.specular_color) < 0.001) {
                 return color;
             }
 
-            const bounce_color = material.specular_color * self.shadeRay(.{ .dir = reflection, .point = p }, bounces - 1);
+            const bounce_color = material.specular_color * self.shadeRay(.{ .dir = reflection, .origin = p }, bounces - 1);
             color += bounce_color;
         }
         return color;
@@ -64,7 +135,7 @@ pub const Scene = struct {
     pub fn hit(self: Scene, ray: main.Ray, eps: f64, r: f64) ?main.HitRecord {
         const eps_ray: main.Ray = .{
             .dir = ray.dir,
-            .point = ray.point + ray.dir * vec3.splat(eps),
+            .origin = ray.origin + ray.dir * vec3.splat(eps),
         };
 
         var closest_dist = r;
@@ -77,6 +148,16 @@ pub const Scene = struct {
                 closest_hit = hit_record.?;
             }
         }
+
+        for (self.triangles.items) |tri| {
+            const hit_record = tri.hit(eps_ray, 0, r);
+
+            if (hit_record != null and hit_record.?.distance < closest_dist) {
+                closest_dist = hit_record.?.distance;
+                closest_hit = hit_record.?;
+            }
+        }
+
         return closest_hit;
     }
 
@@ -88,6 +169,10 @@ pub const Scene = struct {
 
         for (self.spheres.items) |sphere| {
             try writer.print("{f}\n", .{sphere});
+        }
+
+        for (self.triangles.items) |tri| {
+            try writer.print("{f}\n", .{tri});
         }
 
         try writer.print("background: {d}, {d}, {d}\n", .{ self.background[0], self.background[1], self.background[2] });
@@ -154,7 +239,7 @@ pub const Sphere = struct {
 
     pub fn hit(self: Sphere, ray: main.Ray, ray_tmin: f64, ray_tmax: f64) ?main.HitRecord {
         const dir = ray.dir;
-        const obj_c: Vec3 = (ray.point - self.center);
+        const obj_c: Vec3 = (ray.origin - self.center);
 
         const a = vec3.magnitude2(dir);
         const b = 2 * vec3.dot(dir, obj_c);
