@@ -9,6 +9,7 @@ const Progress = std.Progress;
 
 var prng = std.Random.Xoshiro256.init(42);
 const rand = prng.random();
+const ThreadPool = std.Thread.Pool;
 
 pub const Camera = struct {
     pos: Vec3 = vec3.zero,
@@ -22,6 +23,8 @@ pub const Camera = struct {
 
     inv_img_width: ?f32 = null,
     inv_img_height: ?f32 = null,
+
+    samples_per_pix_inv: ?f64 = null,
     f_half_w: ?f32 = null,
     f_half_h: ?f32 = null,
     d: ?f64 = null,
@@ -38,6 +41,7 @@ pub const Camera = struct {
         self.right = vec3.unit(vec3.cross(self.up, self.fwd));
 
         self.d = self.f_half_h.? / std.math.tan(self.fov_ha * (std.math.pi / 180.0));
+        self.samples_per_pix_inv = 1.0 / @as(f64, @floatFromInt(self.samples_per_pixel));
     }
 
     pub fn getRay(self: Camera, i: u16, j: u16) main.Ray {
@@ -61,24 +65,55 @@ pub const Camera = struct {
         const img_width = self.film_resolution.@"0";
         const img_height = self.film_resolution.@"1";
         var output_img = try Image.init(allocator, img_width, img_height);
-        const samples_per_pix_inv: f64 = 1.0 / @as(f64, @floatFromInt(self.samples_per_pixel));
 
-        const root = Progress.start(.{ .refresh_rate_ns = 200 * std.time.ns_per_ms, .root_name = "Rendering Scene", .estimated_total_items = 1 });
-        const line = root.start("Rendering Line", img_width);
-        for (0..img_width) |i| {
-            line.setCompletedItems(i);
-            for (0..img_height) |j| {
-                var color = vec3.zero;
-                for (0..self.samples_per_pixel) |_| {
-                    const ray = self.getRay(@intCast(i), @intCast(j));
-                    color += s.shadeRay(ray, self.max_depth);
-                }
-                color = color * vec3.splat(samples_per_pix_inv);
+        const root = Progress.start(.{ .root_name = "Rendering Scene", .estimated_total_items = 1 });
+        const line_pb = root.start("Rendering Line", img_height);
 
-                output_img.setPixel(@intCast(i), @intCast(j), color);
-            }
+        var pool: std.Thread.Pool = undefined;
+        try pool.init(.{
+            .allocator = allocator,
+            .n_jobs = 4,
+        });
+        defer pool.deinit();
+
+        var wg: std.Thread.WaitGroup = .{};
+
+        std.debug.print("{}\n", .{img_height});
+        for (0..img_height) |j| {
+            pool.spawnWg(&wg, Camera.scanLine, .{ self, j, &output_img, s, line_pb });
+            // for (0..img_width) |i| {
+            //     var color = vec3.zero;
+            //     for (0..self.samples_per_pixel) |_| {
+            //         const ray = self.getRay(@intCast(i), @intCast(j));
+            //         color += s.shadeRay(ray, self.max_depth);
+            //     }
+            //     color = color * vec3.splat(samples_per_pix_inv);
+            //
+            //     output_img.setPixel(@intCast(i), @intCast(j), color);
+            // }
         }
         return output_img;
+    }
+
+    fn scanLine(self: Camera, line_number: usize, image: *Image, s: scene.Scene, progress_bar: ?Progress.Node) void {
+        const img_width = self.film_resolution.@"0";
+
+        for (0..img_width) |i| {
+            var color = vec3.zero;
+            for (0..self.samples_per_pixel) |_| {
+                const ray = self.getRay(@intCast(i), @intCast(line_number));
+                color += s.shadeRay(ray, self.max_depth);
+            }
+            color = color * vec3.splat(self.samples_per_pix_inv.?);
+
+            // std.debug.print("setting pixel {} {}\n", .{ i, line_number });
+
+            image.setPixel(@intCast(i), @intCast(line_number), color);
+        }
+
+        if (progress_bar) |pg| {
+            pg.completeOne();
+        }
     }
 
     pub fn format(

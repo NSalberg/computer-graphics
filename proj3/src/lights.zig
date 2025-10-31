@@ -50,6 +50,7 @@ pub const PointLight = struct {
 
         const srec = scene.hit(.{ .origin = x, .dir = l }, 0.002, r);
         if (srec != null) {
+            @branchHint(.unlikely);
             // we hit an object on the way to the light so we in shadow
             return vec3.zero;
         } else {
