@@ -3,6 +3,7 @@ const Vec3 = vec3.Vec3;
 const std = @import("std");
 
 const scene = @import("scene.zig");
+const objects = @import("objects.zig");
 const Scene = scene.Scene;
 const Material = scene.Material;
 const Sphere = scene.Sphere;
@@ -224,7 +225,7 @@ pub fn parseLine(allocator: std.mem.Allocator, line: []const u8, s: *Scene, mate
             const v1 = s.vertices.items[v1_idx];
             const v2 = s.vertices.items[v2_idx];
 
-            const tri = scene.Triangle.init(
+            const tri = objects.Triangle.init(
                 v0,
                 v1,
                 v2,
@@ -242,13 +243,16 @@ pub fn parseLine(allocator: std.mem.Allocator, line: []const u8, s: *Scene, mate
             const v1 = s.vertices.items[v1_idx];
             const v2 = s.vertices.items[v2_idx];
 
-            const tri = scene.Triangle.init(
-                v0,
-                v1,
-                v2,
-                @as(u16, @intCast(s.materials.items.len)) - 1,
-            );
-            try s.triangles.append(allocator, tri);
+            const n0_idx = try std.fmt.parseInt(usize, val_it.next().?, 0);
+            const n1_idx = try std.fmt.parseInt(usize, val_it.next().?, 0);
+            const n2_idx = try std.fmt.parseInt(usize, val_it.next().?, 0);
+
+            const n0 = s.normals.items[n0_idx];
+            const n1 = s.normals.items[n1_idx];
+            const n2 = s.normals.items[n2_idx];
+
+            const tri = objects.NormalTriangle.init(v0, v1, v2, n0, n1, n2, @as(u16, @intCast(s.materials.items.len)) - 1);
+            try s.normaltriangles.append(allocator, tri);
         },
         // else => {
         //     return error.CommandNotImplemented;
@@ -258,8 +262,10 @@ pub fn parseLine(allocator: std.mem.Allocator, line: []const u8, s: *Scene, mate
 pub fn parseSceneFile(alloc: std.mem.Allocator, reader: *std.Io.Reader) !Scene {
     const material_buffer = try alloc.alloc(Material, std.math.maxInt(u16));
     var s = scene.Scene{
-        .spheres = try std.ArrayList(Sphere).initCapacity(alloc, 1),
-        .triangles = try std.ArrayList(scene.Triangle).initCapacity(alloc, 1),
+        .spheres = try std.ArrayList(objects.Sphere).initCapacity(alloc, 1),
+        .triangles = try std.ArrayList(objects.Triangle).initCapacity(alloc, 1),
+        .normaltriangles = try std.ArrayList(objects.NormalTriangle).initCapacity(alloc, 1),
+
         .lights = try std.ArrayList(Light).initCapacity(alloc, 1),
         .materials = std.ArrayList(Material).initBuffer(material_buffer),
         .vertices = try std.ArrayList(Vec3).initCapacity(alloc, 0),

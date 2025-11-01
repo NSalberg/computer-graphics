@@ -18,7 +18,7 @@ pub const Camera = struct {
     right: Vec3 = Vec3{ -1, 0, 0 },
     fov_ha: f32 = 45,
     film_resolution: struct { u16, u16 } = .{ 640, 480 },
-    samples_per_pixel: u32 = 25,
+    samples_per_pixel: u32 = 5,
     max_depth: u16 = 5,
 
     inv_img_width: ?f32 = null,

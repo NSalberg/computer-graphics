@@ -56,7 +56,7 @@ pub fn main() !void {
     var output_img = try scene_.render(arena.allocator());
 
     // std.debug.print("Sizeof spherep{}\n", .{@sizeOf(SphereP)});
-    std.debug.print("Sizeof sphere{}\n", .{@sizeOf(scene.Sphere)});
+    // std.debug.print("Sizeof sphere{}\n", .{@sizeOf(scene.Sphere)});
     std.debug.print("Rendering took {d:.6} s\n", .{@as(f64, @floatFromInt(timer.lap())) / 1e9});
 
     std.debug.print("output: {s}\n", .{scene_.output_image});
