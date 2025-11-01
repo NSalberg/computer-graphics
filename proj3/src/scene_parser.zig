@@ -132,11 +132,12 @@ pub fn parseLine(allocator: std.mem.Allocator, line: []const u8, s: *Scene, mate
             // std.debug.print("ff|{x}|gg, len = {}\n", .{ r_s, r_s.len });
             const r = try std.fmt.parseFloat(f64, r_s);
 
-            try s.spheres.append(allocator, .{
+            const sphere = objects.Sphere{
                 .center = .{ x, y, z },
                 .radius = r,
                 .material_idx = @as(u16, @intCast(s.materials.items.len)) - 1,
-            });
+            };
+            try s.objects.append(allocator, objects.Object{ .sphere = sphere });
         },
 
         .background => s.background = try parseVec3(vals),
@@ -231,7 +232,7 @@ pub fn parseLine(allocator: std.mem.Allocator, line: []const u8, s: *Scene, mate
                 v2,
                 @as(u16, @intCast(s.materials.items.len)) - 1,
             );
-            try s.triangles.append(allocator, tri);
+            try s.objects.append(allocator, objects.Object{ .triangle = tri });
         },
         .normal_triangle => {
             var val_it = std.mem.splitScalar(u8, vals, ' ');
@@ -252,7 +253,7 @@ pub fn parseLine(allocator: std.mem.Allocator, line: []const u8, s: *Scene, mate
             const n2 = s.normals.items[n2_idx];
 
             const tri = objects.NormalTriangle.init(v0, v1, v2, n0, n1, n2, @as(u16, @intCast(s.materials.items.len)) - 1);
-            try s.normaltriangles.append(allocator, tri);
+            try s.objects.append(allocator, objects.Object{ .normal_triangle = tri });
         },
         // else => {
         //     return error.CommandNotImplemented;
@@ -262,9 +263,10 @@ pub fn parseLine(allocator: std.mem.Allocator, line: []const u8, s: *Scene, mate
 pub fn parseSceneFile(alloc: std.mem.Allocator, reader: *std.Io.Reader) !Scene {
     const material_buffer = try alloc.alloc(Material, std.math.maxInt(u16));
     var s = scene.Scene{
-        .spheres = try std.ArrayList(objects.Sphere).initCapacity(alloc, 1),
-        .triangles = try std.ArrayList(objects.Triangle).initCapacity(alloc, 1),
-        .normaltriangles = try std.ArrayList(objects.NormalTriangle).initCapacity(alloc, 1),
+        .objects = try std.ArrayList(objects.Object).initCapacity(alloc, 1),
+        // .spheres = try std.ArrayList(objects.Sphere).initCapacity(alloc, 1),
+        // .triangles = try std.ArrayList(objects.Triangle).initCapacity(alloc, 1),
+        // .normaltriangles = try std.ArrayList(objects.NormalTriangle).initCapacity(alloc, 1),
 
         .lights = try std.ArrayList(Light).initCapacity(alloc, 1),
         .materials = std.ArrayList(Material).initBuffer(material_buffer),

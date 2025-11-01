@@ -5,10 +5,22 @@ const main = @import("main.zig");
 
 const assert = std.debug.assert;
 
-pub const Object = union {
+pub const Object = union(enum) {
     sphere: Sphere,
     triangle: Triangle,
     normal_triangle: NormalTriangle,
+
+    pub fn hit(object: Object, ray: main.Ray, ray_tmin: f64, ray_tmax: f64) ?main.HitRecord {
+        return switch (object) {
+            inline else => |obj| obj.hit(ray, ray_tmin, ray_tmax),
+        };
+    }
+
+    pub fn format(self: @This(), writer: anytype) !void {
+        return switch (self) {
+            inline else => |l| try writer.print("{f}", .{l}),
+        };
+    }
 };
 
 pub const Sphere = struct {

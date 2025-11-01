@@ -15,10 +15,7 @@ pub const Scene = struct {
 
     output_image: [:0]const u8 = "raytraced.bmp",
 
-    // Objects
-    spheres: std.ArrayList(objects.Sphere),
-    triangles: std.ArrayList(objects.Triangle),
-    normaltriangles: std.ArrayList(objects.NormalTriangle),
+    objects: std.ArrayList(objects.Object),
 
     background: Vec3 = Vec3{ 0, 0, 0 },
 
@@ -87,26 +84,8 @@ pub const Scene = struct {
 
         var closest_dist = r;
         var closest_hit: ?main.HitRecord = null;
-        for (self.spheres.items) |sphere| {
-            const hit_record = sphere.hit(eps_ray, 0, r);
-
-            if (hit_record != null and hit_record.?.distance < closest_dist) {
-                closest_dist = hit_record.?.distance;
-                closest_hit = hit_record.?;
-            }
-        }
-
-        for (self.triangles.items) |tri| {
-            const hit_record = tri.hit(eps_ray, 0, r);
-
-            if (hit_record != null and hit_record.?.distance < closest_dist) {
-                closest_dist = hit_record.?.distance;
-                closest_hit = hit_record.?;
-            }
-        }
-
-        for (self.normaltriangles.items) |tri| {
-            const hit_record = tri.hit(eps_ray, 0, r);
+        for (self.objects.items) |obj| {
+            const hit_record = obj.hit(eps_ray, 0, r);
 
             if (hit_record != null and hit_record.?.distance < closest_dist) {
                 closest_dist = hit_record.?.distance;
@@ -123,12 +102,8 @@ pub const Scene = struct {
     ) std.Io.Writer.Error!void {
         try writer.print("{f}\n", .{self.camera});
 
-        for (self.spheres.items) |sphere| {
+        for (self.objects.items) |sphere| {
             try writer.print("{f}\n", .{sphere});
-        }
-
-        for (self.triangles.items) |tri| {
-            try writer.print("{f}\n", .{tri});
         }
 
         try writer.print("background: {d}, {d}, {d}\n", .{ self.background[0], self.background[1], self.background[2] });
