@@ -109,7 +109,7 @@ pub const Scene = struct {
             }
 
             // Check right child with updated distance (big performance win!)
-            if (self.intersectBVH(ray, closest_dist, node.right_child_idx)) |hitr| {
+            if (self.intersectBVH(ray, closest_dist, node.left_child_idx + 1)) |hitr| {
                 closest_hit = hitr;
             }
 

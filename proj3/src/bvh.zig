@@ -16,7 +16,6 @@ pub fn buildBVH(scene: *Scene, alloc: std.mem.Allocator) !void {
     var nodes_used: usize = 1;
     const root: *BVHNode = &bvh[0];
     root.left_child_idx = 0;
-    root.right_child_idx = 0;
     root.first_obj_idx = 0;
     root.obj_count = scene.objects.items.len;
     root.updateBounds(scene);
@@ -26,7 +25,6 @@ pub fn buildBVH(scene: *Scene, alloc: std.mem.Allocator) !void {
 pub const BVHNode = struct {
     aab: aabb.AxisAlignedBB,
     left_child_idx: usize,
-    right_child_idx: usize,
     first_obj_idx: usize,
     obj_count: usize,
 
@@ -80,7 +78,6 @@ pub const BVHNode = struct {
         const right_child_idx = nodes_used.* + 1;
         nodes_used.* += 2;
         node.left_child_idx = left_child_idx;
-        node.right_child_idx = right_child_idx;
 
         scene.bvh[left_child_idx].first_obj_idx = node.first_obj_idx;
         scene.bvh[left_child_idx].obj_count = left_count;
