@@ -24,7 +24,7 @@ pub const Scene = struct {
 
     materials: std.ArrayList(Material),
 
-    bvh: std.ArrayList(bvh_tree.BVHNode) = .{},
+    bvh: []bvh_tree.BVHNode = undefined,
 
     vertices: std.ArrayList(Vec3),
     normals: std.ArrayList(Vec3),
@@ -80,7 +80,7 @@ pub const Scene = struct {
     }
 
     pub fn intersectBVH(self: Scene, ray: main.Ray, r: f64, node_idx: usize) ?main.HitRecord {
-        const node = self.bvh.items[node_idx];
+        const node = self.bvh[node_idx];
         if (!node.aab.hit(ray, 0, r)) {
             return null;
         }
@@ -88,7 +88,8 @@ pub const Scene = struct {
         if (node.isLeaf()) {
             var closest_dist = r;
             var closest_hit: ?main.HitRecord = null;
-            for (self.objects.items[node.first_obj..(node.first_obj + node.obj_count)]) |obj| {
+            for (self.objects.items[node.first_obj_idx..(node.first_obj_idx + node.obj_count)]) |obj| {
+                // std.debug.print("obj_count{}\n", .{node.obj_count});
                 // Use closest_dist instead of r for early termination
                 const hit_record = obj.hit(ray, 0, closest_dist);
                 if (hit_record != null and hit_record.?.distance < closest_dist) {
@@ -102,13 +103,13 @@ pub const Scene = struct {
             var closest_dist = r;
             var closest_hit: ?main.HitRecord = null;
 
-            if (self.intersectBVH(ray, closest_dist, node.left_child)) |hitl| {
+            if (self.intersectBVH(ray, closest_dist, node.left_child_idx)) |hitl| {
                 closest_dist = hitl.distance;
                 closest_hit = hitl;
             }
 
             // Check right child with updated distance (big performance win!)
-            if (self.intersectBVH(ray, closest_dist, node.right_child)) |hitr| {
+            if (self.intersectBVH(ray, closest_dist, node.right_child_idx)) |hitr| {
                 closest_hit = hitr;
             }
 

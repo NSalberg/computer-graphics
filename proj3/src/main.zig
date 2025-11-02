@@ -46,7 +46,7 @@ pub fn main() !void {
     var read_buf: [4096]u8 = undefined;
     var file_reader = file.reader(&read_buf);
     const scene_ = try scene_parser.parseSceneFile(alloc, &file_reader.interface);
-    std.debug.print("{f}\n", .{scene_});
+    // std.debug.print("{f}\n", .{scene_});
 
     zstbi.init(alloc);
     // this crashes so i guess we'll just leak some memory
