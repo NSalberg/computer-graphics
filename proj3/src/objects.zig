@@ -1,6 +1,7 @@
 const vec3 = @import("vec3.zig");
 const Vec3 = vec3.Vec3;
 const std = @import("std");
+const aabb = @import("aabb.zig");
 const main = @import("main.zig");
 
 const assert = std.debug.assert;
@@ -13,6 +14,20 @@ pub const Object = union(enum) {
     pub fn hit(object: Object, ray: main.Ray, ray_tmin: f64, ray_tmax: f64) ?main.HitRecord {
         return switch (object) {
             inline else => |obj| obj.hit(ray, ray_tmin, ray_tmax),
+        };
+    }
+
+    pub fn boundingBox(self: Object) aabb.AxisAlignedBB {
+        return switch (self) {
+            inline else => |obj| return obj.boundingBox(),
+        };
+    }
+
+    pub fn centroid(self: Object) Vec3 {
+        return switch (self) {
+            .sphere => |s| return s.center,
+            .triangle => |t| return t.centroid,
+            .normal_triangle => |t| return t.centroid,
         };
     }
 
@@ -73,6 +88,11 @@ pub const Sphere = struct {
                 .surface_normal = vec3.unit(p - self.center),
             };
         }
+    }
+
+    pub fn boundingBox(self: Sphere) aabb.AxisAlignedBB {
+        const rvec = vec3.splat(self.radius);
+        return .{ .min = self.center - rvec, .max = self.center + rvec };
     }
 
     pub fn format(
@@ -154,6 +174,17 @@ pub const NormalTriangle = struct {
         };
     }
 
+    pub fn boundingBox(self: NormalTriangle) aabb.AxisAlignedBB {
+        const min_v = @min(@min(self.v0, self.v1), self.v2);
+        const max_v = @max(@max(self.v0, self.v1), self.v2);
+
+        const epsilon = vec3.splat(0.0001);
+        return aabb.AxisAlignedBB{
+            .min = min_v - epsilon,
+            .max = max_v + epsilon,
+        };
+    }
+
     pub fn format(
         self: @This(),
         writer: *std.Io.Writer,
@@ -225,6 +256,16 @@ pub const Triangle = struct {
         };
     }
 
+    pub fn boundingBox(self: Triangle) aabb.AxisAlignedBB {
+        const min_v = @min(@min(self.v0, self.v1), self.v2);
+        const max_v = @max(@max(self.v0, self.v1), self.v2);
+
+        const epsilon = vec3.splat(0.0001);
+        return aabb.AxisAlignedBB{
+            .min = min_v - epsilon,
+            .max = max_v + epsilon,
+        };
+    }
     pub fn format(
         self: @This(),
         writer: *std.Io.Writer,
@@ -237,3 +278,12 @@ pub const Triangle = struct {
         });
     }
 };
+
+test "Triangle.boundingBox " {
+    const tri = Triangle.init(.{ -10.0, 3.0, -5.0 }, .{ 5.0, -2.0, 8.0 }, .{ 0.0, 0.0, 0.0 }, 0);
+    const bb = tri.boundingBox();
+
+    // std.debug.print("{}{}", .{ bb.min, bb.max });
+    try std.testing.expectEqual(Vec3{ -10.0, -2.0, -5.0 }, bb.min);
+    try std.testing.expectEqual(Vec3{ 5.0, 3.0, 8.0 }, bb.max);
+}

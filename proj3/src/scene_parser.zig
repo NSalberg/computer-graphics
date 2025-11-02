@@ -1,6 +1,7 @@
 const vec3 = @import("vec3.zig");
 const Vec3 = vec3.Vec3;
 const std = @import("std");
+const bvh_tree = @import("bvh.zig");
 
 const scene = @import("scene.zig");
 const objects = @import("objects.zig");
@@ -286,5 +287,6 @@ pub fn parseSceneFile(alloc: std.mem.Allocator, reader: *std.Io.Reader) !Scene {
         try parseLine(alloc, line, &s, &material);
     }
     s.camera.init();
+    try bvh_tree.buildBVH(&s, alloc);
     return s;
 }

@@ -1,5 +1,6 @@
 const vec3 = @import("vec3.zig");
 const main = @import("main.zig");
+const bvh_tree = @import("bvh.zig");
 const Light = @import("lights.zig").Light;
 const Camera = @import("camera.zig").Camera;
 const Image = @import("image.zig").Image;
@@ -22,6 +23,8 @@ pub const Scene = struct {
     lights: std.ArrayList(Light),
 
     materials: std.ArrayList(Material),
+
+    bvh: std.ArrayList(bvh_tree.BVHNode) = .{},
 
     vertices: std.ArrayList(Vec3),
     normals: std.ArrayList(Vec3),
@@ -75,6 +78,43 @@ pub const Scene = struct {
         }
         return color;
     }
+
+    pub fn intersectBVH(self: Scene, ray: main.Ray, r: f64, node_idx: usize) ?main.HitRecord {
+        const node = self.bvh.items[node_idx];
+        if (!node.aab.hit(ray, 0, r)) {
+            return null;
+        }
+
+        if (node.isLeaf()) {
+            var closest_dist = r;
+            var closest_hit: ?main.HitRecord = null;
+            for (self.objects.items[node.first_obj..(node.first_obj + node.obj_count)]) |obj| {
+                // Use closest_dist instead of r for early termination
+                const hit_record = obj.hit(ray, 0, closest_dist);
+                if (hit_record != null and hit_record.?.distance < closest_dist) {
+                    closest_dist = hit_record.?.distance;
+                    closest_hit = hit_record;
+                }
+            }
+            return closest_hit;
+        } else {
+            // Check left child first
+            var closest_dist = r;
+            var closest_hit: ?main.HitRecord = null;
+
+            if (self.intersectBVH(ray, closest_dist, node.left_child)) |hitl| {
+                closest_dist = hitl.distance;
+                closest_hit = hitl;
+            }
+
+            // Check right child with updated distance (big performance win!)
+            if (self.intersectBVH(ray, closest_dist, node.right_child)) |hitr| {
+                closest_hit = hitr;
+            }
+
+            return closest_hit;
+        }
+    }
     // Trace a ray through the scene from t = [0 + eps, r)
     pub fn hit(self: Scene, ray: main.Ray, eps: f64, r: f64) ?main.HitRecord {
         const eps_ray: main.Ray = .{
@@ -82,16 +122,7 @@ pub const Scene = struct {
             .origin = ray.origin + ray.dir * vec3.splat(eps),
         };
 
-        var closest_dist = r;
-        var closest_hit: ?main.HitRecord = null;
-        for (self.objects.items) |obj| {
-            const hit_record = obj.hit(eps_ray, 0, r);
-
-            if (hit_record != null and hit_record.?.distance < closest_dist) {
-                closest_dist = hit_record.?.distance;
-                closest_hit = hit_record.?;
-            }
-        }
+        const closest_hit = intersectBVH(self, eps_ray, r, 0);
 
         return closest_hit;
     }
