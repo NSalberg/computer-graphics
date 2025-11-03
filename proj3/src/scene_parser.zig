@@ -63,7 +63,7 @@ pub fn parseMaterial(vals: []const u8) !Material {
         .transmissive_color = try parseVec3It(&val_it),
         .index_of_refraction = blk: {
             const ior_s = val_it.next().?;
-            std.debug.print("ior|{x}|gg, len = {}\n", .{ ior_s, ior_s.len });
+            // std.debug.print("ior|{x}|gg, len = {}\n", .{ ior_s, ior_s.len });
             const ior = try std.fmt.parseFloat(f64, ior_s);
             break :blk ior;
         },

@@ -46,7 +46,6 @@ pub const Scene = struct {
         color = vec3.zero;
         for (self.lights.items) |light| {
             color += light.illuminate(ray, hit_obj.?, self);
-            // Reflect
         }
         if (bounces > 0) {
             // Reflect
@@ -82,13 +81,15 @@ pub const Scene = struct {
     pub fn intersectBVH(self: Scene, ray: main.Ray, r: f64, node_idx: usize) ?main.HitRecord {
         const node = self.bvh[node_idx];
         if (!node.aab.hit(ray, 0, r)) {
+            // std.debug.print("Missed box returning early\n", .{});
             return null;
         }
 
         if (node.isLeaf()) {
             var closest_dist = r;
             var closest_hit: ?main.HitRecord = null;
-            for (self.objects.items[node.first_obj_idx..(node.first_obj_idx + node.obj_count)]) |obj| {
+
+            for (self.objects.items[node.left_first_idx..(node.left_first_idx + node.obj_count)]) |obj| {
                 // std.debug.print("obj_count{}\n", .{node.obj_count});
                 // Use closest_dist instead of r for early termination
                 const hit_record = obj.hit(ray, 0, closest_dist);
@@ -103,13 +104,12 @@ pub const Scene = struct {
             var closest_dist = r;
             var closest_hit: ?main.HitRecord = null;
 
-            if (self.intersectBVH(ray, closest_dist, node.left_child_idx)) |hitl| {
+            if (self.intersectBVH(ray, closest_dist, node.left_first_idx)) |hitl| {
                 closest_dist = hitl.distance;
                 closest_hit = hitl;
             }
 
-            // Check right child with updated distance (big performance win!)
-            if (self.intersectBVH(ray, closest_dist, node.left_child_idx + 1)) |hitr| {
+            if (self.intersectBVH(ray, closest_dist, node.left_first_idx + 1)) |hitr| {
                 closest_hit = hitr;
             }
 
@@ -123,9 +123,7 @@ pub const Scene = struct {
             .origin = ray.origin + ray.dir * vec3.splat(eps),
         };
 
-        const closest_hit = intersectBVH(self, eps_ray, r, 0);
-
-        return closest_hit;
+        return intersectBVH(self, eps_ray, r, 0);
     }
 
     pub fn format(

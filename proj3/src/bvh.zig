@@ -11,12 +11,10 @@ pub fn buildBVH(scene: *Scene, alloc: std.mem.Allocator) !void {
     const bvh = try alloc.alloc(BVHNode, num_objects);
 
     scene.bvh = bvh;
-    // scene.bvh = std.ArrayList(BVHNode).initBuffer(bvh);
 
     var nodes_used: usize = 1;
     const root: *BVHNode = &bvh[0];
-    root.left_child_idx = 0;
-    root.first_obj_idx = 0;
+    root.left_first_idx = 0;
     root.obj_count = scene.objects.items.len;
     root.updateBounds(scene);
     root.subdivide(scene, &nodes_used);
@@ -24,8 +22,7 @@ pub fn buildBVH(scene: *Scene, alloc: std.mem.Allocator) !void {
 
 pub const BVHNode = struct {
     aab: aabb.AxisAlignedBB,
-    left_child_idx: usize,
-    first_obj_idx: usize,
+    left_first_idx: usize,
     obj_count: usize,
 
     pub inline fn isLeaf(self: BVHNode) bool {
@@ -33,7 +30,7 @@ pub const BVHNode = struct {
     }
 
     pub fn updateBounds(self: *BVHNode, scene: *Scene) void {
-        const node_idx = self.first_obj_idx;
+        const node_idx = self.left_first_idx;
         self.aab = aabb.AxisAlignedBB{
             .min = vec3.splat(std.math.inf(f64)),
             .max = vec3.splat(-std.math.inf(f64)),
@@ -42,11 +39,11 @@ pub const BVHNode = struct {
             const bounding_box = obj.boundingBox();
             self.aab.min = @min(self.aab.min, bounding_box.min);
             self.aab.max = @max(self.aab.max, bounding_box.max);
-            if (node_idx == 0) {
+            if (node_idx == 1) {
                 std.debug.print("aabb0: {} {}\n", .{ self.aab.min, self.aab.max });
             }
         }
-        if (node_idx == 0) {
+        if (node_idx == 1) {
             std.debug.print("aabb0 fin: {} {}\n", .{ self.aab.min, self.aab.max });
         }
     }
@@ -60,7 +57,7 @@ pub const BVHNode = struct {
         if (extent[2] > extent[axis]) axis = 2;
 
         const split_pos = node.aab.min[axis] + extent[axis] * 0.5;
-        var i = node.first_obj_idx;
+        var i = node.left_first_idx;
         var j = i + node.obj_count - 1;
         while (i <= j) {
             const centroid = scene.objects.items[i].centroid()[axis];
@@ -71,19 +68,19 @@ pub const BVHNode = struct {
                 j -= 1;
             }
         }
-        const left_count = i - node.first_obj_idx;
+        const left_count = i - node.left_first_idx;
         if (left_count == 0 or left_count == node.obj_count) return;
 
         const left_child_idx = nodes_used.*;
         const right_child_idx = nodes_used.* + 1;
         nodes_used.* += 2;
-        node.left_child_idx = left_child_idx;
 
-        scene.bvh[left_child_idx].first_obj_idx = node.first_obj_idx;
+        scene.bvh[left_child_idx].left_first_idx = node.left_first_idx;
         scene.bvh[left_child_idx].obj_count = left_count;
 
-        scene.bvh[right_child_idx].first_obj_idx = i;
+        scene.bvh[right_child_idx].left_first_idx = i;
         scene.bvh[right_child_idx].obj_count = node.obj_count - left_count;
+        node.left_first_idx = left_child_idx;
 
         node.obj_count = 0;
 

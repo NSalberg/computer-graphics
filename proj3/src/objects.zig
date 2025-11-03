@@ -243,7 +243,6 @@ pub const Triangle = struct {
             return null;
         }
 
-        // Account for normals not facing the camera
         var normal = vec3.unit(vec3.cross(e1, e2));
         if (vec3.dot(normal, ray.dir) > 0) {
             normal = -normal;

@@ -77,7 +77,6 @@ pub const Camera = struct {
 
         var wg: std.Thread.WaitGroup = .{};
 
-        std.debug.print("{}\n", .{img_height});
         for (0..img_height) |j| {
             pool.spawnWg(&wg, Camera.scanLine, .{ self, j, &output_img, s, line_pb });
             // for (0..img_width) |i| {
@@ -99,13 +98,12 @@ pub const Camera = struct {
 
         for (0..img_width) |i| {
             var color = vec3.zero;
+
             for (0..self.samples_per_pixel) |_| {
                 const ray = self.getRay(@intCast(i), @intCast(line_number));
                 color += s.shadeRay(ray, self.max_depth);
             }
             color = color * vec3.splat(self.samples_per_pix_inv.?);
-
-            // std.debug.print("setting pixel {} {}\n", .{ i, line_number });
 
             image.setPixel(@intCast(i), @intCast(line_number), color);
         }
