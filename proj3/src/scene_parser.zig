@@ -72,7 +72,6 @@ pub fn parseMaterial(vals: []const u8) !Material {
 
 pub fn parseLine(allocator: std.mem.Allocator, line: []const u8, s: *Scene, material: *Material) !void {
     // std.debug.print("{s}", .{line});
-    std.debug.print("{s}", .{line});
     if (line.len <= 0 or line[0] == '#')
         return;
 

@@ -53,15 +53,15 @@ pub const Scene = struct {
             const material = self.materials.items[hit_obj.?.material_idx];
 
             const p = ray.eval(hit_obj.?.distance);
-            if (vec3.magnitude2(material.specular_color) > 0.001) {
+            if (vec3.magnitude2(material.specular_color) > 0.000001) {
                 const reflection = vec3.reflect(ray.dir, n);
                 // bounce_point + eps * normal
 
-                const bounce_color = material.specular_color * self.shadeRay(.{ .dir = reflection, .origin = p + n * vec3.splat(0.001) }, bounces - 1);
+                const bounce_color = material.specular_color * self.shadeRay(.{ .dir = reflection, .origin = p + n * vec3.splat(0.00001) }, bounces - 1);
                 color += bounce_color;
             }
 
-            if (vec3.magnitude2(material.transmissive_color) > 0.001) {
+            if (vec3.magnitude2(material.transmissive_color) > 0.000001) {
                 const entering = vec3.dot(ray.dir, n) < 0;
                 const etai_over_etat = if (entering)
                     1.0 / material.index_of_refraction // air -> material

@@ -18,7 +18,7 @@ pub const Camera = struct {
     right: Vec3 = Vec3{ -1, 0, 0 },
     fov_ha: f32 = 45,
     film_resolution: struct { u16, u16 } = .{ 640, 480 },
-    samples_per_pixel: u32 = 5,
+    samples_per_pixel: u32 = 25,
     max_depth: u16 = 5,
 
     inv_img_width: ?f32 = null,
@@ -79,6 +79,7 @@ pub const Camera = struct {
 
         for (0..img_height) |j| {
             pool.spawnWg(&wg, Camera.scanLine, .{ self, j, &output_img, s, line_pb });
+            // scanLine(self, j, &output_img, s, line_pb);
             // for (0..img_width) |i| {
             //     var color = vec3.zero;
             //     for (0..self.samples_per_pixel) |_| {
