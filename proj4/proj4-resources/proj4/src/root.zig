@@ -44,30 +44,81 @@ var ibo: c_uint = undefined;
 
 var uptime: std.time.Timer = undefined;
 
-const hexagon_mesh = struct {
-    // zig fmt: off
-    const vertices = [_]Vertex{
-        .{ .position = .{  0,                        -1   }, .color = .{ 0, 1, 1 } },
-        .{ .position = .{ -(@sqrt(@as(f32, 3)) / 2), -0.5 }, .color = .{ 0, 0, 1 } },
-        .{ .position = .{  (@sqrt(@as(f32, 3)) / 2), -0.5 }, .color = .{ 0, 1, 0 } },
-        .{ .position = .{ -(@sqrt(@as(f32, 3)) / 2),  0.5 }, .color = .{ 1, 0, 1 } },
-        .{ .position = .{  (@sqrt(@as(f32, 3)) / 2),  0.5 }, .color = .{ 1, 1, 0 } },
-        .{ .position = .{  0,                         1   }, .color = .{ 1, 0, 0 } },
-    };
-    // zig fmt: on
-
-    const indices = [_]u8{
-        0, 3, 1,
-        0, 4, 3,
-        0, 2, 4,
-        3, 4, 5,
-    };
-
-    const Vertex = extern struct {
-        position: [2]f32,
-        color: [3]f32,
-    };
+const Vertex = extern struct {
+    pos: [3]f32,
+    normal: [3]f32,
+    uv: [2]f32,
 };
+
+const cube_vertices = [36]Vertex{
+    // Front (Z+)
+    .{ .pos = .{ -0.5, -0.5, 0.5 }, .normal = .{ 0, 0, 1 }, .uv = .{ 0, 0 } },
+    .{ .pos = .{ 0.5, -0.5, 0.5 }, .normal = .{ 0, 0, 1 }, .uv = .{ 1, 0 } },
+    .{ .pos = .{ 0.5, 0.5, 0.5 }, .normal = .{ 0, 0, 1 }, .uv = .{ 1, 1 } },
+    .{ .pos = .{ -0.5, -0.5, 0.5 }, .normal = .{ 0, 0, 1 }, .uv = .{ 0, 0 } },
+    .{ .pos = .{ 0.5, 0.5, 0.5 }, .normal = .{ 0, 0, 1 }, .uv = .{ 1, 1 } },
+    .{ .pos = .{ -0.5, 0.5, 0.5 }, .normal = .{ 0, 0, 1 }, .uv = .{ 0, 1 } },
+    // Back (Z-)
+    .{ .pos = .{ 0.5, -0.5, -0.5 }, .normal = .{ 0, 0, -1 }, .uv = .{ 0, 0 } },
+    .{ .pos = .{ -0.5, -0.5, -0.5 }, .normal = .{ 0, 0, -1 }, .uv = .{ 1, 0 } },
+    .{ .pos = .{ -0.5, 0.5, -0.5 }, .normal = .{ 0, 0, -1 }, .uv = .{ 1, 1 } },
+    .{ .pos = .{ 0.5, -0.5, -0.5 }, .normal = .{ 0, 0, -1 }, .uv = .{ 0, 0 } },
+    .{ .pos = .{ -0.5, 0.5, -0.5 }, .normal = .{ 0, 0, -1 }, .uv = .{ 1, 1 } },
+    .{ .pos = .{ 0.5, 0.5, -0.5 }, .normal = .{ 0, 0, -1 }, .uv = .{ 0, 1 } },
+    // Left (X-)
+    .{ .pos = .{ -0.5, -0.5, -0.5 }, .normal = .{ -1, 0, 0 }, .uv = .{ 0, 0 } },
+    .{ .pos = .{ -0.5, -0.5, 0.5 }, .normal = .{ -1, 0, 0 }, .uv = .{ 1, 0 } },
+    .{ .pos = .{ -0.5, 0.5, 0.5 }, .normal = .{ -1, 0, 0 }, .uv = .{ 1, 1 } },
+    .{ .pos = .{ -0.5, -0.5, -0.5 }, .normal = .{ -1, 0, 0 }, .uv = .{ 0, 0 } },
+    .{ .pos = .{ -0.5, 0.5, 0.5 }, .normal = .{ -1, 0, 0 }, .uv = .{ 1, 1 } },
+    .{ .pos = .{ -0.5, 0.5, -0.5 }, .normal = .{ -1, 0, 0 }, .uv = .{ 0, 1 } },
+    // Right (X+)
+    .{ .pos = .{ 0.5, -0.5, 0.5 }, .normal = .{ 1, 0, 0 }, .uv = .{ 0, 0 } },
+    .{ .pos = .{ 0.5, -0.5, -0.5 }, .normal = .{ 1, 0, 0 }, .uv = .{ 1, 0 } },
+    .{ .pos = .{ 0.5, 0.5, -0.5 }, .normal = .{ 1, 0, 0 }, .uv = .{ 1, 1 } },
+    .{ .pos = .{ 0.5, -0.5, 0.5 }, .normal = .{ 1, 0, 0 }, .uv = .{ 0, 0 } },
+    .{ .pos = .{ 0.5, 0.5, -0.5 }, .normal = .{ 1, 0, 0 }, .uv = .{ 1, 1 } },
+    .{ .pos = .{ 0.5, 0.5, 0.5 }, .normal = .{ 1, 0, 0 }, .uv = .{ 0, 1 } },
+    // Top (Y+)
+    .{ .pos = .{ -0.5, 0.5, 0.5 }, .normal = .{ 0, 1, 0 }, .uv = .{ 0, 0 } },
+    .{ .pos = .{ 0.5, 0.5, 0.5 }, .normal = .{ 0, 1, 0 }, .uv = .{ 1, 0 } },
+    .{ .pos = .{ 0.5, 0.5, -0.5 }, .normal = .{ 0, 1, 0 }, .uv = .{ 1, 1 } },
+    .{ .pos = .{ -0.5, 0.5, 0.5 }, .normal = .{ 0, 1, 0 }, .uv = .{ 0, 0 } },
+    .{ .pos = .{ 0.5, 0.5, -0.5 }, .normal = .{ 0, 1, 0 }, .uv = .{ 1, 1 } },
+    .{ .pos = .{ -0.5, 0.5, -0.5 }, .normal = .{ 0, 1, 0 }, .uv = .{ 0, 1 } },
+    // Bottom (Y-)
+    .{ .pos = .{ -0.5, -0.5, -0.5 }, .normal = .{ 0, -1, 0 }, .uv = .{ 0, 0 } },
+    .{ .pos = .{ 0.5, -0.5, -0.5 }, .normal = .{ 0, -1, 0 }, .uv = .{ 1, 0 } },
+    .{ .pos = .{ 0.5, -0.5, 0.5 }, .normal = .{ 0, -1, 0 }, .uv = .{ 1, 1 } },
+    .{ .pos = .{ -0.5, -0.5, -0.5 }, .normal = .{ 0, -1, 0 }, .uv = .{ 0, 0 } },
+    .{ .pos = .{ 0.5, -0.5, 0.5 }, .normal = .{ 0, -1, 0 }, .uv = .{ 1, 1 } },
+    .{ .pos = .{ -0.5, -0.5, 0.5 }, .normal = .{ 0, -1, 0 }, .uv = .{ 0, 1 } },
+};
+
+// const hexagon_mesh = struct {
+//     // zig fmt: off
+//     const vertices = [_]Vertex{
+//         .{ .position = .{  0,                        -1   }, .color = .{ 0, 1, 1 } },
+//         .{ .position = .{ -(@sqrt(@as(f32, 3)) / 2), -0.5 }, .color = .{ 0, 0, 1 } },
+//         .{ .position = .{  (@sqrt(@as(f32, 3)) / 2), -0.5 }, .color = .{ 0, 1, 0 } },
+//         .{ .position = .{ -(@sqrt(@as(f32, 3)) / 2),  0.5 }, .color = .{ 1, 0, 1 } },
+//         .{ .position = .{  (@sqrt(@as(f32, 3)) / 2),  0.5 }, .color = .{ 1, 1, 0 } },
+//         .{ .position = .{  0,                         1   }, .color = .{ 1, 0, 0 } },
+//     };
+//     // zig fmt: on
+//
+//     const indices = [_]u8{
+//         0, 3, 1,
+//         0, 4, 3,
+//         0, 2, 4,
+//         3, 4, 5,
+//     };
+//
+//     const Vertex = extern struct {
+//         position: [2]f32,
+//         color: [3]f32,
+//     };
+// };
 
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{ .thread_safe = true }){};
@@ -212,6 +263,62 @@ fn initSDL() !void {
             \\    v_Color = a_Color;
             \\}
             \\
+        ;
+
+        _ =
+            \\in vec3 position;
+            \\in vec3 inNormal;
+            \\in vec2 inTexCoord;
+            \\out vec3 fragPos;
+            \\out vec3 normal;
+            \\out vec2 texCoord;
+            \\out vec3 vertColor;
+            \\uniform mat4 model;
+            \\uniform mat4 view;
+            \\uniform mat4 proj;
+            \\uniform vec3 objectColor;
+            \\void main() {
+            \\    fragPos = vec3(model * vec4(position, 1.0));
+            \\    normal = mat3(transpose(inverse(model))) * inNormal;
+            \\    texCoord = inTexCoord;
+            \\    vertColor = objectColor;
+            \\    gl_Position = proj * view * model * vec4(position, 1.0);
+            \\ }
+            \\
+        ;
+        _ =
+            \\in vec3 fragPos;
+            \\in vec3 normal;
+            \\in vec2 texCoord;
+            \\in vec3 vertColor;
+            \\out vec4 outColor;
+            \\uniform vec3 lightPos;
+            \\uniform vec3 viewPos;
+            \\uniform float ambient;
+            \\uniform float useCheckerboard;
+            \\void main() {
+            \\    vec3 color = vertColor;
+            \\    // Checkerboard pattern for floor
+            \\    if (useCheckerboard > 0.5) {
+            \\        float scale = 2.0;
+            \\        int cx = int(floor(texCoord.x * scale));
+            \\        int cy = int(floor(texCoord.y * scale));
+            \\        if ((cx + cy) % 2 == 0) color *= 0.7;
+            \\    }
+            \\    // Ambient
+            \\    vec3 ambientLight = ambient * color;
+            \\    // Diffuse
+            \\    vec3 norm = normalize(normal);
+            \\    vec3 lightDir = normalize(lightPos - fragPos);
+            \\    float diff = max(dot(norm, lightDir), 0.0);
+            \\    vec3 diffuse = diff * color;
+            \\    // Specular
+            \\    vec3 viewDir = normalize(viewPos - fragPos);
+            \\    vec3 reflectDir = reflect(-lightDir, norm);
+            \\    float spec = pow(max(dot(viewDir, reflectDir), 0.0), 32.0);
+            \\    vec3 specular = 0.3 * spec * vec3(1.0);
+            \\    outColor = vec4(ambientLight + diffuse + specular, 1.0);
+            \\}
         ;
         const fragment_shader_source =
             \\// OpenGL ES default precision statements
