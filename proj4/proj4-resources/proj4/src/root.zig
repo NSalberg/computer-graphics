@@ -10,6 +10,11 @@ const c = @cImport({
     @cInclude("SDL3/SDL_main.h");
 });
 
+const float = f32;
+const zlm = @import("zlm").as(float);
+const Vec3 = zlm.Vec3;
+const Vec2 = zlm.Vec2;
+
 const maze = @import("maze.zig");
 
 const sdl_log = std.log.scoped(.sdl);
@@ -30,12 +35,40 @@ var renderer: *c.SDL_Renderer = undefined;
 var gl_context: c.SDL_GLContext = undefined;
 var gl_procs: gl.ProcTable = undefined;
 
-/// Vertex Array Object (VAO). Holds information on how vertex data is laid out in memory.
-/// Using VAOs is strictly required in modern OpenGL.
-var vao: c_uint = undefined;
+// Player state
 
-/// Vertex Buffer Object (VBO). Holds vertex data.
-var vbo: c_uint = undefined;
+const PlayerState = struct {
+    pos: Vec3,
+    yaw: float = 0,
+    pitch: float = 0,
+    height: float = 0.5,
+    move_speed: float = 2.5,
+    rotate_speed: float = 2.0,
+    mouse_sense: float = 0.002,
+    radius: float = 0.2,
+};
+
+var player = PlayerState{
+    .pos = undefined,
+};
+// float playerYaw = 0.0f; // Horizontal rotation
+// float playerPitch = 0.0f;
+// const float PLAYER_HEIGHT = 0.5f;
+// const float PLAYER_RADIUS = 0.2f;
+// const float MOVE_SPEED = 2.5f;
+// const float ROTATE_SPEED = 2.0f;
+// const float MOUSE_SENSITIVITY = 0.002f;
+
+/// Vertex Array Object (VAO). Holds information on how vertex data is laid out in memory.
+var wall_VAO: c_uint = undefined;
+var wall_VBO: c_uint = undefined;
+
+var floor_VAO: c_uint = undefined;
+var floor_VBO: c_uint = undefined;
+
+var key_VA0: c_uint = undefined;
+var key_VB0: c_uint = undefined;
+var key_vertex_count: c_uint = undefined;
 
 var framebuffer_size_uniform: c_int = undefined;
 var angle_uniform: c_int = undefined;
@@ -95,42 +128,53 @@ const cube_vertices = [36]Vertex{
     .{ .pos = .{ -0.5, -0.5, 0.5 }, .normal = .{ 0, -1, 0 }, .uv = .{ 0, 1 } },
 };
 
-// const hexagon_mesh = struct {
-//     // zig fmt: off
-//     const vertices = [_]Vertex{
-//         .{ .position = .{  0,                        -1   }, .color = .{ 0, 1, 1 } },
-//         .{ .position = .{ -(@sqrt(@as(f32, 3)) / 2), -0.5 }, .color = .{ 0, 0, 1 } },
-//         .{ .position = .{  (@sqrt(@as(f32, 3)) / 2), -0.5 }, .color = .{ 0, 1, 0 } },
-//         .{ .position = .{ -(@sqrt(@as(f32, 3)) / 2),  0.5 }, .color = .{ 1, 0, 1 } },
-//         .{ .position = .{  (@sqrt(@as(f32, 3)) / 2),  0.5 }, .color = .{ 1, 1, 0 } },
-//         .{ .position = .{  0,                         1   }, .color = .{ 1, 0, 0 } },
-//     };
-//     // zig fmt: on
-//
-//     const indices = [_]u8{
-//         0, 3, 1,
-//         0, 4, 3,
-//         0, 2, 4,
-//         3, 4, 5,
-//     };
-//
-//     const Vertex = extern struct {
-//         position: [2]f32,
-//         color: [3]f32,
-//     };
-// };
+pub fn canMoveTo(x: float, z: float) bool {
+    const gx: usize = @intFromFloat(x);
+    const gz: usize = @intFromFloat(z);
+    if (gx < 0 or gx >= maze.map_width or gz < 0 or gz >= maze.map_height)
+        return false;
+    const char = maze.game_map.items[gz][gx];
+    if (char == 'W')
+        return false;
+    if (char >= 'A' and char <= 'E') {
+        const needed = char - 'A' + 'a';
+        return maze.keys_collected.contains(needed);
+    }
+    return true;
+}
+
+pub fn checkCollisions() !void {
+    const gx: usize = @intFromFloat(player.pos.x);
+    const gz: usize = @intFromFloat(player.pos.z);
+    if (gx >= 0 and gx < maze.map_width and gz >= 0 and gz < maze.map_height) {
+        const char = &maze.game_map.items[gz][gx];
+        if (char.* >= 'a' and char.* <= 'e') {
+            try maze.keys_collected.put(char.*, {});
+            std.debug.print("Collected key: {c}\n", .{char.*});
+            char.* = '0';
+        }
+        if (char.* == 'G') {
+            maze.game_won = true;
+            std.debug.print("Game Won!\n", .{});
+        }
+    }
+}
 
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{ .thread_safe = true }){};
     const alloc = gpa.allocator();
 
     try maze.loadMap(alloc, "level1.txt");
+    player.pos = maze.player_pos;
     try initSDL();
     var quit = false;
 
     var e: c.SDL_Event = undefined;
-    // var lastTime = c.SDL_GetTicks();
+    var lastTime = c.SDL_GetTicks();
     while (!quit) {
+        const now = c.SDL_GetTicks();
+        const dt: f64 = @as(f64, @floatFromInt(now - lastTime)) / 1000.0;
+        lastTime = now;
         while (c.SDL_PollEvent(&e)) {
             switch (e.type) {
                 c.SDL_EVENT_QUIT => quit = true,
@@ -138,48 +182,159 @@ pub fn main() !void {
                     quit = true;
                 },
                 c.SDL_EVENT_MOUSE_MOTION => {
-
-                    //   playerYaw += e.motion.xrel * MOUSE_SENSITIVITY;
+                    player.yaw += e.motion.xrel * player.mouse_sense;
                 },
                 else => {},
             }
-
-            // if (e.type == SDL_EVENT_MOUSE_MOTION) {
-            //   playerYaw += e.motion.xrel * MOUSE_SENSITIVITY;
-            // }
         }
-        // const now = c.SDL_GetTicks();
-        // const dt: f64 = @as(f64, @floatFromInt(now - lastTime)) / 1000.0;
-        // lastTime = now;
-        {
-            // Clear the screen to white.
-            gl.ClearColor(1, 1, 1, 1);
-            gl.Clear(gl.COLOR_BUFFER_BIT);
+        const keys = c.SDL_GetKeyboardState(null);
 
-            gl.UseProgram(program);
-            defer gl.UseProgram(0);
+        const front = Vec3.new(@cos(player.yaw), 0, @sin(player.yaw));
+        const right = Vec3.new(-front.z, 0, front.x);
+        var move = Vec3.zero;
 
-            // Make sure any changes to the window size are reflected by the framebuffer size uniform.
-            var fb_width: c_int = undefined;
-            var fb_height: c_int = undefined;
-            try errify(c.SDL_GetWindowSizeInPixels(window, &fb_width, &fb_height));
-            gl.Viewport(0, 0, fb_width, fb_height);
-            gl.Uniform2f(framebuffer_size_uniform, @floatFromInt(fb_width), @floatFromInt(fb_height));
+        if (keys[c.SDL_SCANCODE_W] == true or keys[c.SDL_SCANCODE_UP] == true)
+            move = move.add(front);
+        if (keys[c.SDL_SCANCODE_S] == true or keys[c.SDL_SCANCODE_DOWN] == true)
+            move = move.sub(front);
+        if (keys[c.SDL_SCANCODE_A] == true)
+            move = move.sub(right);
+        if (keys[c.SDL_SCANCODE_D] == true)
+            move = move.add(right);
+        if (keys[c.SDL_SCANCODE_LEFT] == true)
+            player.yaw -= player.rotate_speed * @as(float, @floatCast(dt));
+        if (keys[c.SDL_SCANCODE_RIGHT] == true)
+            player.yaw += player.rotate_speed * @as(float, @floatCast(dt));
 
-            // Rotate the hexagon clockwise at a rate of one complete revolution per minute.
-            const seconds = @as(f32, @floatFromInt(uptime.read())) / std.time.ns_per_s;
-            gl.Uniform1f(angle_uniform, seconds / 60 * -std.math.tau);
+        if (move.length() > 0) {
+            move = move.normalize().mul(Vec3.all(player.move_speed)).mul(Vec3.all(@as(float, @floatCast(dt))));
+            const new_pos = player.pos.add(move);
 
-            gl.BindVertexArray(vao);
-            defer gl.BindVertexArray(0);
-
-            // Draw the hexagon!
-            gl.DrawElements(gl.TRIANGLES, hexagon_mesh.indices.len, gl.UNSIGNED_BYTE, 0);
+            if (canMoveTo(new_pos.x + player.radius, new_pos.z) and
+                canMoveTo(new_pos.x - player.radius, new_pos.z) and
+                canMoveTo(new_pos.x, new_pos.z + player.radius) and
+                canMoveTo(new_pos.x, new_pos.z - player.radius))
+            {
+                player.pos = new_pos;
+            }
         }
+        try checkCollisions();
+
+        //render
 
         // Display the drawn content.
         try errify(c.SDL_GL_SwapWindow(window));
     }
+}
+fn render() void {
+    const aspect: float = @as(float, @floatFromInt(window_w)) / @as(float, @floatFromInt(window_h));
+    // Clear the screen to white.
+    gl.ClearColor(1, 1, 1, 1);
+    gl.Clear(c.GL_COLOR_BUFFER_BIT | c.GL_DEPTH_BUFFER_BIT);
+
+    gl.UseProgram(program);
+    defer gl.UseProgram(0);
+
+    const front = Vec3.new(@cos(player.yaw), 0, @sin(player.yaw));
+
+    const view = zlm.Mat4.createLookAt(player.pos, player.pos.add(front), Vec3.new(0, 1, 0));
+    const proj = zlm.Mat4.createPerspective(zlm.toRadians(70.0), aspect, 0.1, 100.0);
+
+    gl.UniformMatrix4fv(gl.GetUniformLocation(program, "view"), 1, gl.FALSE, &view.fields[0][0]);
+    gl.UniformMatrix4fv(gl.GetUniformLocation(program, "proj"), 1, gl.FALSE, &proj.fields[0][0]);
+
+    gl.Uniform3fv(gl.GetUniformLocation(program, "viewPos"), 1, &player.pos.x);
+    // 0.5 was 2
+    gl.Uniform3f(gl.GetUniformLocation(program, "lightPos"), player.pos.x, player.pos.y + 0.5, player.pos.z);
+    gl.Uniform1f(gl.GetUniformLocation(program, "ambient"), 0.3);
+
+    // Make sure any changes to the window size are reflected by the framebuffer size uniform.
+    var fb_width: c_int = undefined;
+    var fb_height: c_int = undefined;
+    try errify(c.SDL_GetWindowSizeInPixels(window, &fb_width, &fb_height));
+    gl.Viewport(0, 0, fb_width, fb_height);
+    gl.Uniform2f(framebuffer_size_uniform, @floatFromInt(fb_width), @floatFromInt(fb_height));
+
+    // Rotate the hexagon clockwise at a rate of one complete revolution per minute.
+    const seconds = @as(f32, @floatFromInt(uptime.read())) / std.time.ns_per_s;
+    gl.Uniform1f(angle_uniform, seconds / 60 * -std.math.tau);
+
+    gl.BindVertexArray(vao);
+    defer gl.BindVertexArray(0);
+
+    // Draw the hexagon!
+    // gl.DrawElements(gl.TRIANGLES, hexagon_mesh.indices.len, gl.UNSIGNED_BYTE, 0);
+}
+
+fn setupGeometry() void {
+    gl.GenVertexArrays(1, &wall_VAO);
+    gl.GenBuffers(1, &wall_VBO);
+    gl.BindVertexArray(wall_VAO);
+    gl.BindBuffer(gl.ARRAY_BUFFER, wall_VBO);
+    gl.BufferData(gl.ARRAY_BUFFER, cube_vertices.len * @sizeOf(Vertex), cube_vertices, gl.STATIC_DRAW);
+
+    // glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void *)0);
+    // glEnableVertexAttribArray(0);
+    // glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float),
+    //                       (void *)(3 * sizeof(float)));
+    // glEnableVertexAttribArray(1);
+    // glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 8 * sizeof(float),
+    //                       (void *)(6 * sizeof(float)));
+    // glEnableVertexAttribArray(2);
+    // Gen
+    {
+        gl.GenVertexArrays(1, (&vao)[0..1]);
+        errdefer gl.DeleteVertexArrays(1, (&vao)[0..1]);
+
+        gl.GenBuffers(1, (&vbo)[0..1]);
+        errdefer gl.DeleteBuffers(1, (&vbo)[0..1]);
+
+        gl.GenBuffers(1, (&ibo)[0..1]);
+        errdefer gl.DeleteBuffers(1, (&ibo)[0..1]);
+    }
+    gl.BindVertexArray(vao);
+    defer gl.BindVertexArray(0);
+
+    gl.BindBuffer(gl.ARRAY_BUFFER, vbo);
+    defer gl.BindBuffer(gl.ARRAY_BUFFER, 0);
+
+    // gl.BufferData(
+    //     gl.ARRAY_BUFFER,
+    //     @sizeOf(@TypeOf(hexagon_mesh.vertices)),
+    //     &hexagon_mesh.vertices,
+    //     gl.STATIC_DRAW,
+    // );
+
+    const position_attrib: c_uint = @intCast(gl.GetAttribLocation(program, "a_Position"));
+    gl.EnableVertexAttribArray(position_attrib);
+    // gl.VertexAttribPointer(
+    //     position_attrib,
+    //     @typeInfo(@FieldType(hexagon_mesh.Vertex, "position")).array.len,
+    //     gl.FLOAT,
+    //     gl.FALSE,
+    //     @sizeOf(hexagon_mesh.Vertex),
+    //     @offsetOf(hexagon_mesh.Vertex, "position"),
+    // );
+
+    const color_attrib: c_uint = @intCast(gl.GetAttribLocation(program, "a_Color"));
+    gl.EnableVertexAttribArray(color_attrib);
+    // gl.VertexAttribPointer(
+    //     color_attrib,
+    //     @typeInfo(@FieldType(hexagon_mesh.Vertex, "color")).array.len,
+    //     gl.FLOAT,
+    //     gl.FALSE,
+    //     @sizeOf(hexagon_mesh.Vertex),
+    //     @offsetOf(hexagon_mesh.Vertex, "color"),
+    // );
+
+    // Instruct the VAO to use our IBO, then upload index data to the IBO.
+    gl.BindBuffer(gl.ELEMENT_ARRAY_BUFFER, ibo);
+    // gl.BufferData(
+    //     gl.ELEMENT_ARRAY_BUFFER,
+    //     @sizeOf(@TypeOf(hexagon_mesh.indices)),
+    //     &hexagon_mesh.indices,
+    //     gl.STATIC_DRAW,
+    // );
 }
 
 fn initSDL() !void {
@@ -230,42 +385,8 @@ fn initSDL() !void {
                 \\
             ),
         };
-        const vertex_shader_source =
-            \\// Width/height of the framebuffer
-            \\uniform vec2 u_FramebufferSize;
-            \\
-            \\// Amount (in radians) to rotate the object
-            \\uniform float u_Angle;
-            \\
-            \\// Vertex attributes
-            \\in vec4 a_Position;
-            \\in vec4 a_Color;
-            \\
-            \\// Color output to pass to fragment shader
-            \\out vec4 v_Color;
-            \\
-            \\void main() {
-            \\    // Scale the object to fit the framebuffer while maintaining its aspect ratio.
-            \\    vec2 scale = min(u_FramebufferSize.yx / u_FramebufferSize.xy, vec2(1));
-            \\
-            \\    // Shrink the object slightly to fit the framebuffer even when rotated.
-            \\    scale *= 0.875;
-            \\
-            \\    float s = sin(u_Angle);
-            \\    float c = cos(u_Angle);
-            \\
-            \\    gl_Position = vec4(
-            \\        (a_Position.x * c + a_Position.y * -s) * scale.x,
-            \\        (a_Position.x * s + a_Position.y * c) * scale.y,
-            \\        a_Position.zw
-            \\    );
-            \\
-            \\    v_Color = a_Color;
-            \\}
-            \\
-        ;
 
-        _ =
+        const vertex_shader_source =
             \\in vec3 position;
             \\in vec3 inNormal;
             \\in vec2 inTexCoord;
@@ -286,7 +407,7 @@ fn initSDL() !void {
             \\ }
             \\
         ;
-        _ =
+        const fragment_shader_source =
             \\in vec3 fragPos;
             \\in vec3 normal;
             \\in vec2 texCoord;
@@ -319,22 +440,6 @@ fn initSDL() !void {
             \\    vec3 specular = 0.3 * spec * vec3(1.0);
             \\    outColor = vec4(ambientLight + diffuse + specular, 1.0);
             \\}
-        ;
-        const fragment_shader_source =
-            \\// OpenGL ES default precision statements
-            \\precision highp float;
-            \\precision highp int;
-            \\
-            \\// Color input from the vertex shader
-            \\in vec4 v_Color;
-            \\
-            \\// Final color output
-            \\out vec4 f_Color;
-            \\
-            \\void main() {
-            \\    f_Color = v_Color;
-            \\}
-            \\
         ;
 
         program = gl.CreateProgram();
@@ -380,64 +485,6 @@ fn initSDL() !void {
             return error.LinkProgramFailed;
         }
     }
-
-    framebuffer_size_uniform = gl.GetUniformLocation(program, "u_FramebufferSize");
-    angle_uniform = gl.GetUniformLocation(program, "u_Angle");
-
-    // Gen
-    {
-        gl.GenVertexArrays(1, (&vao)[0..1]);
-        errdefer gl.DeleteVertexArrays(1, (&vao)[0..1]);
-
-        gl.GenBuffers(1, (&vbo)[0..1]);
-        errdefer gl.DeleteBuffers(1, (&vbo)[0..1]);
-
-        gl.GenBuffers(1, (&ibo)[0..1]);
-        errdefer gl.DeleteBuffers(1, (&ibo)[0..1]);
-    }
-    gl.BindVertexArray(vao);
-    defer gl.BindVertexArray(0);
-
-    gl.BindBuffer(gl.ARRAY_BUFFER, vbo);
-    defer gl.BindBuffer(gl.ARRAY_BUFFER, 0);
-
-    gl.BufferData(
-        gl.ARRAY_BUFFER,
-        @sizeOf(@TypeOf(hexagon_mesh.vertices)),
-        &hexagon_mesh.vertices,
-        gl.STATIC_DRAW,
-    );
-
-    const position_attrib: c_uint = @intCast(gl.GetAttribLocation(program, "a_Position"));
-    gl.EnableVertexAttribArray(position_attrib);
-    gl.VertexAttribPointer(
-        position_attrib,
-        @typeInfo(@FieldType(hexagon_mesh.Vertex, "position")).array.len,
-        gl.FLOAT,
-        gl.FALSE,
-        @sizeOf(hexagon_mesh.Vertex),
-        @offsetOf(hexagon_mesh.Vertex, "position"),
-    );
-
-    const color_attrib: c_uint = @intCast(gl.GetAttribLocation(program, "a_Color"));
-    gl.EnableVertexAttribArray(color_attrib);
-    gl.VertexAttribPointer(
-        color_attrib,
-        @typeInfo(@FieldType(hexagon_mesh.Vertex, "color")).array.len,
-        gl.FLOAT,
-        gl.FALSE,
-        @sizeOf(hexagon_mesh.Vertex),
-        @offsetOf(hexagon_mesh.Vertex, "color"),
-    );
-
-    // Instruct the VAO to use our IBO, then upload index data to the IBO.
-    gl.BindBuffer(gl.ELEMENT_ARRAY_BUFFER, ibo);
-    gl.BufferData(
-        gl.ELEMENT_ARRAY_BUFFER,
-        @sizeOf(@TypeOf(hexagon_mesh.indices)),
-        &hexagon_mesh.indices,
-        gl.STATIC_DRAW,
-    );
 
     uptime = try .start();
 }

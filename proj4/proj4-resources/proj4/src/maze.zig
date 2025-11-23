@@ -7,11 +7,13 @@ const Vec2 = math.Vec2;
 
 const PLAYER_HEIGHT = 0.5;
 
-var map_width: usize = 0;
-var map_height: usize = 0;
-var game_map: std.ArrayList([]u8) = undefined;
-var player_pos: Vec3 = undefined;
-var goal_pos: Vec2 = undefined;
+pub var map_width: usize = 0;
+pub var map_height: usize = 0;
+pub var game_map: std.ArrayList([]u8) = undefined;
+pub var player_pos: Vec3 = undefined;
+pub var goal_pos: Vec2 = undefined;
+pub var keys_collected: std.AutoHashMap(u8, void) = undefined;
+pub var game_won = false;
 
 pub fn loadMap(allocator: std.mem.Allocator, file_name: []const u8) !void {
     const cur_dir = std.fs.cwd();
@@ -21,6 +23,7 @@ pub fn loadMap(allocator: std.mem.Allocator, file_name: []const u8) !void {
     var read_buf: [4096]u8 = undefined;
     var file_reader = file.reader(&read_buf);
     game_map = try std.ArrayList([]u8).initCapacity(allocator, 0);
+    keys_collected = std.AutoHashMap(u8, void).init(allocator);
     try parseMaze(allocator, &file_reader.interface);
 }
 
