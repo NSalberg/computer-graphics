@@ -1,6 +1,8 @@
 //! By convention, root.zig is the root source file when making a library.
 const std = @import("std");
+const assert = std.debug.assert;
 const builtin = @import("builtin");
+
 const gl = @import("gl");
 const c = @cImport({
     @cDefine("SDL_DISABLE_OLD_NAMES", {});
@@ -16,6 +18,7 @@ const Vec3 = zlm.Vec3;
 const Vec2 = zlm.Vec2;
 
 const maze = @import("maze.zig");
+const models = @import("models.zig");
 
 const sdl_log = std.log.scoped(.sdl);
 const gl_log = std.log.scoped(.gl);
@@ -28,8 +31,8 @@ const target_triple: [:0]const u8 = x: {
 
 var program: c_uint = undefined;
 const window_title: [*c]const u8 = "3D Maze Game";
-const window_w = 640;
-const window_h = 480;
+const window_w = 1280;
+const window_h = 720;
 var window: *c.SDL_Window = undefined;
 var renderer: *c.SDL_Renderer = undefined;
 var gl_context: c.SDL_GLContext = undefined;
@@ -60,84 +63,42 @@ var player = PlayerState{
 // const float MOUSE_SENSITIVITY = 0.002f;
 
 /// Vertex Array Object (VAO). Holds information on how vertex data is laid out in memory.
-var wall_VAO: c_uint = undefined;
-var wall_VBO: c_uint = undefined;
+var wall_VAO: c_uint = 0;
+var wall_VBO: c_uint = 0;
+const cube_vertices = models.cube_vertices;
 
-var floor_VAO: c_uint = undefined;
-var floor_VBO: c_uint = undefined;
+var floor_VAO: c_uint = 0;
+var floor_VBO: c_uint = 0;
+const floor_vertices = models.floor_vertices;
 
-var key_VA0: c_uint = undefined;
-var key_VB0: c_uint = undefined;
-var key_vertex_count: c_uint = undefined;
-
-var framebuffer_size_uniform: c_int = undefined;
-var angle_uniform: c_int = undefined;
-/// Index Buffer Object (IBO). Maps indices to vertices, to enable reusing vertex data.
-var ibo: c_uint = undefined;
+var key_VAO: c_uint = 0;
+var key_VBO: c_uint = 0;
+const key_vertices = models.key_vertices;
 
 var uptime: std.time.Timer = undefined;
 
-const Vertex = extern struct {
-    pos: [3]f32,
-    normal: [3]f32,
-    uv: [2]f32,
-};
-
-const cube_vertices = [36]Vertex{
-    // Front (Z+)
-    .{ .pos = .{ -0.5, -0.5, 0.5 }, .normal = .{ 0, 0, 1 }, .uv = .{ 0, 0 } },
-    .{ .pos = .{ 0.5, -0.5, 0.5 }, .normal = .{ 0, 0, 1 }, .uv = .{ 1, 0 } },
-    .{ .pos = .{ 0.5, 0.5, 0.5 }, .normal = .{ 0, 0, 1 }, .uv = .{ 1, 1 } },
-    .{ .pos = .{ -0.5, -0.5, 0.5 }, .normal = .{ 0, 0, 1 }, .uv = .{ 0, 0 } },
-    .{ .pos = .{ 0.5, 0.5, 0.5 }, .normal = .{ 0, 0, 1 }, .uv = .{ 1, 1 } },
-    .{ .pos = .{ -0.5, 0.5, 0.5 }, .normal = .{ 0, 0, 1 }, .uv = .{ 0, 1 } },
-    // Back (Z-)
-    .{ .pos = .{ 0.5, -0.5, -0.5 }, .normal = .{ 0, 0, -1 }, .uv = .{ 0, 0 } },
-    .{ .pos = .{ -0.5, -0.5, -0.5 }, .normal = .{ 0, 0, -1 }, .uv = .{ 1, 0 } },
-    .{ .pos = .{ -0.5, 0.5, -0.5 }, .normal = .{ 0, 0, -1 }, .uv = .{ 1, 1 } },
-    .{ .pos = .{ 0.5, -0.5, -0.5 }, .normal = .{ 0, 0, -1 }, .uv = .{ 0, 0 } },
-    .{ .pos = .{ -0.5, 0.5, -0.5 }, .normal = .{ 0, 0, -1 }, .uv = .{ 1, 1 } },
-    .{ .pos = .{ 0.5, 0.5, -0.5 }, .normal = .{ 0, 0, -1 }, .uv = .{ 0, 1 } },
-    // Left (X-)
-    .{ .pos = .{ -0.5, -0.5, -0.5 }, .normal = .{ -1, 0, 0 }, .uv = .{ 0, 0 } },
-    .{ .pos = .{ -0.5, -0.5, 0.5 }, .normal = .{ -1, 0, 0 }, .uv = .{ 1, 0 } },
-    .{ .pos = .{ -0.5, 0.5, 0.5 }, .normal = .{ -1, 0, 0 }, .uv = .{ 1, 1 } },
-    .{ .pos = .{ -0.5, -0.5, -0.5 }, .normal = .{ -1, 0, 0 }, .uv = .{ 0, 0 } },
-    .{ .pos = .{ -0.5, 0.5, 0.5 }, .normal = .{ -1, 0, 0 }, .uv = .{ 1, 1 } },
-    .{ .pos = .{ -0.5, 0.5, -0.5 }, .normal = .{ -1, 0, 0 }, .uv = .{ 0, 1 } },
-    // Right (X+)
-    .{ .pos = .{ 0.5, -0.5, 0.5 }, .normal = .{ 1, 0, 0 }, .uv = .{ 0, 0 } },
-    .{ .pos = .{ 0.5, -0.5, -0.5 }, .normal = .{ 1, 0, 0 }, .uv = .{ 1, 0 } },
-    .{ .pos = .{ 0.5, 0.5, -0.5 }, .normal = .{ 1, 0, 0 }, .uv = .{ 1, 1 } },
-    .{ .pos = .{ 0.5, -0.5, 0.5 }, .normal = .{ 1, 0, 0 }, .uv = .{ 0, 0 } },
-    .{ .pos = .{ 0.5, 0.5, -0.5 }, .normal = .{ 1, 0, 0 }, .uv = .{ 1, 1 } },
-    .{ .pos = .{ 0.5, 0.5, 0.5 }, .normal = .{ 1, 0, 0 }, .uv = .{ 0, 1 } },
-    // Top (Y+)
-    .{ .pos = .{ -0.5, 0.5, 0.5 }, .normal = .{ 0, 1, 0 }, .uv = .{ 0, 0 } },
-    .{ .pos = .{ 0.5, 0.5, 0.5 }, .normal = .{ 0, 1, 0 }, .uv = .{ 1, 0 } },
-    .{ .pos = .{ 0.5, 0.5, -0.5 }, .normal = .{ 0, 1, 0 }, .uv = .{ 1, 1 } },
-    .{ .pos = .{ -0.5, 0.5, 0.5 }, .normal = .{ 0, 1, 0 }, .uv = .{ 0, 0 } },
-    .{ .pos = .{ 0.5, 0.5, -0.5 }, .normal = .{ 0, 1, 0 }, .uv = .{ 1, 1 } },
-    .{ .pos = .{ -0.5, 0.5, -0.5 }, .normal = .{ 0, 1, 0 }, .uv = .{ 0, 1 } },
-    // Bottom (Y-)
-    .{ .pos = .{ -0.5, -0.5, -0.5 }, .normal = .{ 0, -1, 0 }, .uv = .{ 0, 0 } },
-    .{ .pos = .{ 0.5, -0.5, -0.5 }, .normal = .{ 0, -1, 0 }, .uv = .{ 1, 0 } },
-    .{ .pos = .{ 0.5, -0.5, 0.5 }, .normal = .{ 0, -1, 0 }, .uv = .{ 1, 1 } },
-    .{ .pos = .{ -0.5, -0.5, -0.5 }, .normal = .{ 0, -1, 0 }, .uv = .{ 0, 0 } },
-    .{ .pos = .{ 0.5, -0.5, 0.5 }, .normal = .{ 0, -1, 0 }, .uv = .{ 1, 1 } },
-    .{ .pos = .{ -0.5, -0.5, 0.5 }, .normal = .{ 0, -1, 0 }, .uv = .{ 0, 1 } },
+pub const Vertex = extern struct {
+    pos: [3]float,
+    normal: [3]float,
+    uv: [2]float,
 };
 
 pub fn canMoveTo(x: float, z: float) bool {
-    const gx: usize = @intFromFloat(x);
-    const gz: usize = @intFromFloat(z);
-    if (gx < 0 or gx >= maze.map_width or gz < 0 or gz >= maze.map_height)
+    const gx: i64 = @intFromFloat(x);
+    const gz: i64 = @intFromFloat(z);
+    // std.debug.print("{}, {d}, {d}\n", .{ x < 0, x, z });
+    if (x < 0.0 or gx >= maze.map_width or z < 0.0 or gz >= maze.map_height) {
         return false;
-    const char = maze.game_map.items[gz][gx];
+    }
+    const char = maze.game_map.items[@intCast(gz)][@intCast(gx)];
     if (char == 'W')
         return false;
     if (char >= 'A' and char <= 'E') {
         const needed = char - 'A' + 'a';
+        if (maze.keys_collected.contains(needed)) {
+            maze.game_map.items[@intCast(gz)][@intCast(gx)] = '0';
+            _ = maze.keys_collected.remove(needed);
+        }
         return maze.keys_collected.contains(needed);
     }
     return true;
@@ -153,6 +114,7 @@ pub fn checkCollisions() !void {
             std.debug.print("Collected key: {c}\n", .{char.*});
             char.* = '0';
         }
+
         if (char.* == 'G') {
             maze.game_won = true;
             std.debug.print("Game Won!\n", .{});
@@ -164,13 +126,29 @@ pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{ .thread_safe = true }){};
     const alloc = gpa.allocator();
 
-    try maze.loadMap(alloc, "level1.txt");
+    var args = try std.process.argsWithAllocator(alloc);
+    defer args.deinit();
+
+    // Skip the first arg (program name)
+    _ = args.skip();
+
+    // Get the next argument
+    const filename = args.next() orelse "level1.txt";
+    try maze.loadMap(alloc, filename);
     player.pos = maze.player_pos;
+
+    std.debug.print("Map dimensions: {d}x{d}\n", .{ maze.map_width, maze.map_height });
     try initSDL();
+    setupGeometry();
+
+    gl.Enable(gl.DEPTH_TEST);
+
+    _ = c.SDL_SetWindowRelativeMouseMode(window, true);
     var quit = false;
 
     var e: c.SDL_Event = undefined;
     var lastTime = c.SDL_GetTicks();
+
     while (!quit) {
         const now = c.SDL_GetTicks();
         const dt: f64 = @as(f64, @floatFromInt(now - lastTime)) / 1000.0;
@@ -187,6 +165,8 @@ pub fn main() !void {
                 else => {},
             }
         }
+
+        // std.debug.print("Player position: x={d:.2}, y={d:.2}, z={d:.2}\n", .{ player.pos.x, player.pos.y, player.pos.z });
         const keys = c.SDL_GetKeyboardState(null);
 
         const front = Vec3.new(@cos(player.yaw), 0, @sin(player.yaw));
@@ -220,7 +200,7 @@ pub fn main() !void {
         }
         try checkCollisions();
 
-        //render
+        render();
 
         // Display the drawn content.
         try errify(c.SDL_GL_SwapWindow(window));
@@ -230,7 +210,7 @@ fn render() void {
     const aspect: float = @as(float, @floatFromInt(window_w)) / @as(float, @floatFromInt(window_h));
     // Clear the screen to white.
     gl.ClearColor(1, 1, 1, 1);
-    gl.Clear(c.GL_COLOR_BUFFER_BIT | c.GL_DEPTH_BUFFER_BIT);
+    gl.Clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
     gl.UseProgram(program);
     defer gl.UseProgram(0);
@@ -240,103 +220,165 @@ fn render() void {
     const view = zlm.Mat4.createLookAt(player.pos, player.pos.add(front), Vec3.new(0, 1, 0));
     const proj = zlm.Mat4.createPerspective(zlm.toRadians(70.0), aspect, 0.1, 100.0);
 
-    gl.UniformMatrix4fv(gl.GetUniformLocation(program, "view"), 1, gl.FALSE, &view.fields[0][0]);
-    gl.UniformMatrix4fv(gl.GetUniformLocation(program, "proj"), 1, gl.FALSE, &proj.fields[0][0]);
+    gl.UniformMatrix4fv(gl.GetUniformLocation(program, "view"), 1, gl.FALSE, @ptrCast(&view.fields[0][0]));
+    gl.UniformMatrix4fv(gl.GetUniformLocation(program, "proj"), 1, gl.FALSE, @ptrCast(&proj.fields[0][0]));
 
-    gl.Uniform3fv(gl.GetUniformLocation(program, "viewPos"), 1, &player.pos.x);
+    gl.Uniform3fv(gl.GetUniformLocation(program, "viewPos"), 1, @ptrCast(&player.pos.x));
     // 0.5 was 2
-    gl.Uniform3f(gl.GetUniformLocation(program, "lightPos"), player.pos.x, player.pos.y + 0.5, player.pos.z);
+    gl.Uniform3f(gl.GetUniformLocation(program, "lightPos"), player.pos.x, player.pos.y + 2, player.pos.z);
     gl.Uniform1f(gl.GetUniformLocation(program, "ambient"), 0.3);
 
     // Make sure any changes to the window size are reflected by the framebuffer size uniform.
-    var fb_width: c_int = undefined;
-    var fb_height: c_int = undefined;
-    try errify(c.SDL_GetWindowSizeInPixels(window, &fb_width, &fb_height));
-    gl.Viewport(0, 0, fb_width, fb_height);
-    gl.Uniform2f(framebuffer_size_uniform, @floatFromInt(fb_width), @floatFromInt(fb_height));
+    // var fb_width: c_int = undefined;
+    // var fb_height: c_int = undefined;
+    // try errify(c.SDL_GetWindowSizeInPixels(window, &fb_width, &fb_height));
+    // gl.Viewport(0, 0, fb_width, fb_height);
+    // gl.Uniform2f(framebuffer_size_uniform, @floatFromInt(fb_width), @floatFromInt(fb_height));
 
-    // Rotate the hexagon clockwise at a rate of one complete revolution per minute.
-    const seconds = @as(f32, @floatFromInt(uptime.read())) / std.time.ns_per_s;
-    gl.Uniform1f(angle_uniform, seconds / 60 * -std.math.tau);
+    // draw floor
+    {
+        gl.BindVertexArray(floor_VAO);
+        defer gl.BindVertexArray(0);
 
-    gl.BindVertexArray(vao);
-    defer gl.BindVertexArray(0);
+        gl.Uniform1f(gl.GetUniformLocation(program, "useCheckerboard"), 1.0);
+        defer gl.Uniform1f(gl.GetUniformLocation(program, "useCheckerboard"), 0.0);
 
-    // Draw the hexagon!
-    // gl.DrawElements(gl.TRIANGLES, hexagon_mesh.indices.len, gl.UNSIGNED_BYTE, 0);
+        gl.Uniform3f(gl.GetUniformLocation(program, "objectColor"), 0.4, 0.35, 0.3);
+        for (0..maze.map_width) |x| {
+            for (0..maze.map_height) |z| {
+                const translation = zlm.Mat4.createTranslationXYZ(@floatFromInt(x), 0, @floatFromInt(z));
+                gl.UniformMatrix4fv(gl.GetUniformLocation(program, "model"), 1, gl.FALSE, @ptrCast(&translation.fields[0][0]));
+                gl.DrawArrays(gl.TRIANGLES, 0, models.floor_vertices.len);
+            }
+        }
+    }
+
+    // draw walls
+    {
+        gl.BindVertexArray(wall_VAO);
+        for (0..maze.map_width) |x| {
+            for (0..maze.map_height) |z| {
+                const char = maze.game_map.items[z][x];
+
+                var color: zlm.Vec3 = undefined;
+                var draw = false;
+                if (char == 'W') {
+                    color = zlm.vec3(0.6, 0.6, 0.65);
+                    draw = true;
+                } else if (char >= 'A' and char <= 'E') {
+                    color = maze.getDoorColor(char);
+                    draw = true;
+                } else if (char == 'G') {
+                    color = zlm.vec3(1.0, 0.84, 0.0);
+                    draw = true;
+                }
+                if (draw) {
+                    const translation = zlm.Mat4.createTranslationXYZ(
+                        @as(float, @floatFromInt(x)) + 0.5,
+                        0,
+                        @as(float, @floatFromInt(z)) + 0.5,
+                    );
+                    gl.UniformMatrix4fv(gl.GetUniformLocation(program, "model"), 1, gl.FALSE, @ptrCast(&translation.fields[0][0]));
+
+                    gl.Uniform3f(gl.GetUniformLocation(program, "objectColor"), color.x, color.y, color.z);
+                    gl.DrawArrays(gl.TRIANGLES, 0, models.cube_vertices.len);
+                }
+            }
+        }
+    }
+
+    // Draw floating keys
+    {
+        gl.BindVertexArray(key_VAO);
+
+        for (0..maze.map_width) |x| {
+            for (0..maze.map_height) |z| {
+                const char = maze.game_map.items[z][x];
+
+                if (char >= 'a' and char <= 'e') {
+                    const color = maze.getKeyColor(char);
+                    const bob = @sin(@as(float, @floatFromInt(c.SDL_GetTicks())) / 300.0) * 0.1;
+                    const translation = zlm.Mat4.createTranslationXYZ(
+                        @as(float, @floatFromInt(x)) + 0.5,
+                        bob + 0.3,
+                        @as(float, @floatFromInt(z)) + 0.5,
+                    );
+                    const rotate = zlm.Mat4.createAngleAxis(
+                        .{ .x = 0, .y = 1, .z = 0 },
+                        @as(float, @floatFromInt(c.SDL_GetTicks())) / 500.0,
+                    );
+                    const scale = zlm.Mat4.createScale(0.5, 0.5, 0.5);
+
+                    const model = scale.mul(rotate).mul(translation);
+
+                    gl.UniformMatrix4fv(gl.GetUniformLocation(program, "model"), 1, gl.FALSE, @ptrCast(&model.fields[0][0]));
+                    gl.Uniform3f(gl.GetUniformLocation(program, "objectColor"), color.x, color.y, color.z);
+                    gl.DrawArrays(gl.TRIANGLES, 0, key_vertices.len);
+                }
+            }
+        }
+    }
+
+    {
+        var key_it = maze.keys_collected.keyIterator();
+        var i: u16 = 0;
+        while (key_it.next()) |key| {
+            defer i += 1;
+
+            const bob_offset = @as(u64, @intCast(key.*)) * 600;
+            const bob = @sin(@as(float, @floatFromInt(c.SDL_GetTicks() + bob_offset)) / 300.0) * 0.01;
+            const horizontal_offset = front.mul(Vec3.all(0.2));
+            const offset = zlm.vec3(horizontal_offset.x, bob, horizontal_offset.z);
+
+            const translation = zlm.Mat4.createTranslation(offset.add(player.pos));
+            // std.debug.print("offset {d} {d} {d}", .{ offset.x, offset.y, offset.z });
+            const rotate = zlm.Mat4.createAngleAxis(
+                .{ .x = 0, .y = 1, .z = 0 },
+                @as(float, @floatFromInt(c.SDL_GetTicks())) / 500.0,
+            );
+            const scale = zlm.Mat4.createScale(0.1, 0.1, 0.1);
+
+            const color = maze.getKeyColor(key.*);
+            const model = scale.mul(rotate).mul(translation);
+
+            gl.UniformMatrix4fv(gl.GetUniformLocation(program, "model"), 1, gl.FALSE, @ptrCast(&model.fields[0][0]));
+            gl.Uniform3f(gl.GetUniformLocation(program, "objectColor"), color.x, color.y, color.z);
+            gl.DrawArrays(gl.TRIANGLES, 0, key_vertices.len);
+        }
+    }
+}
+
+fn setupVertexBuffer(
+    vao: *c_uint,
+    vbo: *c_uint,
+    buffer: []const Vertex,
+) void {
+    // std.debug.print("vao {p}\n", .{vao});
+    // std.debug.print("vao {d}\n", .{vao.*});
+    assert(vao.* == 0);
+    assert(vbo.* == 0);
+    assert(buffer.len > 0);
+    gl.GenVertexArrays(1, @ptrCast(vao));
+    gl.GenBuffers(1, @ptrCast(vbo));
+    gl.BindVertexArray(vao.*);
+    gl.BindBuffer(gl.ARRAY_BUFFER, vbo.*);
+    gl.BufferData(gl.ARRAY_BUFFER, @intCast(buffer.len * @sizeOf(Vertex)), buffer.ptr, gl.STATIC_DRAW);
+
+    gl.VertexAttribPointer(0, 3, gl.FLOAT, gl.FALSE, @sizeOf(Vertex), @offsetOf(Vertex, "pos"));
+    gl.VertexAttribPointer(1, 3, gl.FLOAT, gl.FALSE, @sizeOf(Vertex), @offsetOf(Vertex, "normal"));
+    gl.VertexAttribPointer(2, 2, gl.FLOAT, gl.FALSE, @sizeOf(Vertex), @offsetOf(Vertex, "uv"));
+
+    gl.EnableVertexAttribArray(0);
+    gl.EnableVertexAttribArray(1);
+    gl.EnableVertexAttribArray(2);
 }
 
 fn setupGeometry() void {
-    gl.GenVertexArrays(1, &wall_VAO);
-    gl.GenBuffers(1, &wall_VBO);
-    gl.BindVertexArray(wall_VAO);
-    gl.BindBuffer(gl.ARRAY_BUFFER, wall_VBO);
-    gl.BufferData(gl.ARRAY_BUFFER, cube_vertices.len * @sizeOf(Vertex), cube_vertices, gl.STATIC_DRAW);
-
-    // glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void *)0);
-    // glEnableVertexAttribArray(0);
-    // glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float),
-    //                       (void *)(3 * sizeof(float)));
-    // glEnableVertexAttribArray(1);
-    // glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 8 * sizeof(float),
-    //                       (void *)(6 * sizeof(float)));
-    // glEnableVertexAttribArray(2);
-    // Gen
-    {
-        gl.GenVertexArrays(1, (&vao)[0..1]);
-        errdefer gl.DeleteVertexArrays(1, (&vao)[0..1]);
-
-        gl.GenBuffers(1, (&vbo)[0..1]);
-        errdefer gl.DeleteBuffers(1, (&vbo)[0..1]);
-
-        gl.GenBuffers(1, (&ibo)[0..1]);
-        errdefer gl.DeleteBuffers(1, (&ibo)[0..1]);
-    }
-    gl.BindVertexArray(vao);
-    defer gl.BindVertexArray(0);
-
-    gl.BindBuffer(gl.ARRAY_BUFFER, vbo);
-    defer gl.BindBuffer(gl.ARRAY_BUFFER, 0);
-
-    // gl.BufferData(
-    //     gl.ARRAY_BUFFER,
-    //     @sizeOf(@TypeOf(hexagon_mesh.vertices)),
-    //     &hexagon_mesh.vertices,
-    //     gl.STATIC_DRAW,
-    // );
-
-    const position_attrib: c_uint = @intCast(gl.GetAttribLocation(program, "a_Position"));
-    gl.EnableVertexAttribArray(position_attrib);
-    // gl.VertexAttribPointer(
-    //     position_attrib,
-    //     @typeInfo(@FieldType(hexagon_mesh.Vertex, "position")).array.len,
-    //     gl.FLOAT,
-    //     gl.FALSE,
-    //     @sizeOf(hexagon_mesh.Vertex),
-    //     @offsetOf(hexagon_mesh.Vertex, "position"),
-    // );
-
-    const color_attrib: c_uint = @intCast(gl.GetAttribLocation(program, "a_Color"));
-    gl.EnableVertexAttribArray(color_attrib);
-    // gl.VertexAttribPointer(
-    //     color_attrib,
-    //     @typeInfo(@FieldType(hexagon_mesh.Vertex, "color")).array.len,
-    //     gl.FLOAT,
-    //     gl.FALSE,
-    //     @sizeOf(hexagon_mesh.Vertex),
-    //     @offsetOf(hexagon_mesh.Vertex, "color"),
-    // );
-
-    // Instruct the VAO to use our IBO, then upload index data to the IBO.
-    gl.BindBuffer(gl.ELEMENT_ARRAY_BUFFER, ibo);
-    // gl.BufferData(
-    //     gl.ELEMENT_ARRAY_BUFFER,
-    //     @sizeOf(@TypeOf(hexagon_mesh.indices)),
-    //     &hexagon_mesh.indices,
-    //     gl.STATIC_DRAW,
-    // );
+    setupVertexBuffer(&wall_VAO, &wall_VBO, &cube_vertices);
+    setupVertexBuffer(&floor_VAO, &floor_VBO, &floor_vertices);
+    setupVertexBuffer(&key_VAO, &key_VBO, &key_vertices);
 }
-
+/// Creates shaders and initializes program.
 fn initSDL() !void {
     var success: c_int = undefined;
     var info_log_buf: [512:0]u8 = undefined;

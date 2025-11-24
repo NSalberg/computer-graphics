@@ -5,7 +5,7 @@ const math = @import("zlm").as(float);
 const Vec3 = math.Vec3;
 const Vec2 = math.Vec2;
 
-const PLAYER_HEIGHT = 0.5;
+const PLAYER_HEIGHT = 0.3;
 
 pub var map_width: usize = 0;
 pub var map_height: usize = 0;
@@ -15,9 +15,27 @@ pub var goal_pos: Vec2 = undefined;
 pub var keys_collected: std.AutoHashMap(u8, void) = undefined;
 pub var game_won = false;
 
+pub fn getKeyColor(key: u8) Vec3 {
+    return getDoorColor(key - 'a' + 'A');
+}
+
+pub fn getDoorColor(door: u8) Vec3 {
+    return switch (door) {
+        'A' => Vec3{ .x = 1.0, .y = 0.2, .z = 0.2 }, // Red
+        'B' => Vec3{ .x = 0.2, .y = 1.0, .z = 0.2 }, // Green
+        'C' => Vec3{ .x = 0.2, .y = 0.2, .z = 1.0 }, // Blue
+        'D' => Vec3{ .x = 1.0, .y = 1.0, .z = 0.2 }, // Yellow
+        'E' => Vec3{ .x = 1.0, .y = 0.2, .z = 1.0 }, // Magenta
+        else => Vec3{ .x = 0.5, .y = 0.5, .z = 0.5 }, // Default gray
+    };
+}
+
 pub fn loadMap(allocator: std.mem.Allocator, file_name: []const u8) !void {
     const cur_dir = std.fs.cwd();
-    var file = try cur_dir.openFile(file_name, .{});
+    var file = cur_dir.openFile(file_name, .{}) catch |err| {
+        std.debug.print("Error: Could not open file '{s}': {}\n", .{ file_name, err });
+        std.process.exit(1);
+    };
     defer file.close();
 
     var read_buf: [4096]u8 = undefined;
@@ -59,7 +77,7 @@ fn parseLine(allocator: std.mem.Allocator, line: []const u8, y: i64) !void {
                 player_pos = Vec3.new(
                     @as(float, @floatFromInt(x)) + 0.5,
                     PLAYER_HEIGHT,
-                    @as(float, @floatFromInt(y)) + 0.5,
+                    @as(float, @floatFromInt(y)) - 0.5,
                 );
             },
             'G' => {
