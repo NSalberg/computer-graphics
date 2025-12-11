@@ -34,7 +34,6 @@ const window_title: [*c]const u8 = "3D Maze Game";
 const window_w = 1280;
 const window_h = 720;
 var window: *c.SDL_Window = undefined;
-var renderer: *c.SDL_Renderer = undefined;
 var gl_context: c.SDL_GLContext = undefined;
 var gl_procs: gl.ProcTable = undefined;
 
@@ -181,10 +180,6 @@ pub fn main() !void {
             move = move.sub(right);
         if (keys[c.SDL_SCANCODE_D] == true)
             move = move.add(right);
-        if (keys[c.SDL_SCANCODE_LEFT] == true)
-            player.yaw -= player.rotate_speed * @as(float, @floatCast(dt));
-        if (keys[c.SDL_SCANCODE_RIGHT] == true)
-            player.yaw += player.rotate_speed * @as(float, @floatCast(dt));
 
         if (move.length() > 0) {
             move = move.normalize().mul(Vec3.all(player.move_speed)).mul(Vec3.all(@as(float, @floatCast(dt))));
@@ -227,13 +222,6 @@ fn render() void {
     // 0.5 was 2
     gl.Uniform3f(gl.GetUniformLocation(program, "lightPos"), player.pos.x, player.pos.y + 2, player.pos.z);
     gl.Uniform1f(gl.GetUniformLocation(program, "ambient"), 0.3);
-
-    // Make sure any changes to the window size are reflected by the framebuffer size uniform.
-    // var fb_width: c_int = undefined;
-    // var fb_height: c_int = undefined;
-    // try errify(c.SDL_GetWindowSizeInPixels(window, &fb_width, &fb_height));
-    // gl.Viewport(0, 0, fb_width, fb_height);
-    // gl.Uniform2f(framebuffer_size_uniform, @floatFromInt(fb_width), @floatFromInt(fb_height));
 
     // draw floor
     {
@@ -353,8 +341,6 @@ fn setupVertexBuffer(
     vbo: *c_uint,
     buffer: []const Vertex,
 ) void {
-    // std.debug.print("vao {p}\n", .{vao});
-    // std.debug.print("vao {d}\n", .{vao.*});
     assert(vao.* == 0);
     assert(vbo.* == 0);
     assert(buffer.len > 0);
