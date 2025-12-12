@@ -187,6 +187,14 @@ pub fn run() !void {
         gl.Clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
         const io = c.ImGui_GetIO();
 
+        if (e_state.selected_obj_changed) {
+            if (e_state.selected_obj_idx) |obj_idx| {
+                const obj_trans = scne.objects.get(obj_idx).transform;
+                scne.camera.target = Vec3.zero.transformPosition(obj_trans);
+                e_state.selected_obj_changed = false;
+            }
+        }
+
         if (!io.*.WantCaptureMouse) {
             if (c.ImGui_IsMouseDragging(c.ImGuiMouseButton_Right, 0.0)) {
                 const delta = c.ImGui_GetMouseDragDelta(c.ImGuiMouseButton_Right, 0.0);

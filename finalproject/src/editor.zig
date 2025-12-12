@@ -6,6 +6,7 @@ const Vec3 = zlm.Vec3;
 
 pub const EditorState = struct {
     selected_obj_idx: ?usize = null,
+    selected_obj_changed: bool = false,
 };
 
 pub fn drawObjectWindow(e_state: *EditorState, scne: scene.Scene) !void {
@@ -34,7 +35,6 @@ pub fn drawObjectWindow(e_state: *EditorState, scne: scene.Scene) !void {
         }
 
         _ = c.ImGui_ColorEdit3("Color", &my_color_ptr.x, 0);
-        // c.ImGui_ColorEdit3("MyColor##1", (float*)&color, base_flags);
         {
             if (c.ImGui_BeginChild("Scrolling", .{ .x = 0, .y = 0 }, 0, 0)) {
                 defer c.ImGui_EndChild();
@@ -44,6 +44,7 @@ pub fn drawObjectWindow(e_state: *EditorState, scne: scene.Scene) !void {
                     var is_selected = if (e_state.selected_obj_idx) |idx| idx == i else false;
                     if (c.ImGui_SelectableBoolPtrEx(name.ptr, &is_selected, 0, .{ .x = 0, .y = 0 })) {
                         e_state.selected_obj_idx = i;
+                        e_state.selected_obj_changed = true;
                     }
                 }
             }
