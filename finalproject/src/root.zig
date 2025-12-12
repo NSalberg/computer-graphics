@@ -1,0 +1,173 @@
+const std = @import("std");
+const gl = @import("gl");
+
+pub const scene = @import("scene.zig");
+pub const Scene = @import("scene.zig").Scene;
+pub const RenderState = @import("render.zig").SceneRenderer;
+const zlm = @import("zlm").as(f32);
+const Vec3 = zlm.Vec3;
+
+/// This holds what OpenGL needs to render the scene
+// const RenderState = struct {
+//     /// Vertex Array Object (VAO). Holds information on how vertex data is laid out in memory.
+//     pub fn init() !void {}
+// };
+
+/// This holds everything related to the editing tools, not the scene itself.
+/// Currently selected object(s)
+/// Active tool (translate / rotate / scale / material brush)
+/// Gizmo state (dragging axis X? rotating around Y?)
+/// Camera orbit/pan state
+/// Undo/redo stacks
+/// Clipboard (copy/paste)
+/// Pending operations (e.g., “waiting for mouse release to commit action”)
+const EditorState = struct {};
+
+///Raw input normalized into something easy to use.
+///Examples:
+///Mouse position delta
+///Is left mouse currently down?
+///Last-clicked screen position
+///Keys pressed this frame
+///Scroll events
+///SDL events are fed into this each frame.
+///Editor reads from it; nothing writes to it except SDL event handling
+const InputState = struct {};
+
+///A centralized asset repository.
+///Contents:
+///  Loaded meshes
+///  Loaded textures
+///  Materials (organized by ID)
+///  Shaders
+///  Icons/UI textures for ImGui
+const resources = @import("resources.zig");
+
+const ApplicationState = struct {
+    scene: Scene,
+    render_state: RenderState,
+    editor_state: EditorState,
+    input_state: InputState,
+    resources: @import("resources.zig"),
+};
+
+const imgui = @import("cimgui");
+const c = @import("c.zig").c;
+
+const SdlWinCon = struct {
+    window: *c.SDL_Window,
+    context: c.SDL_GLContext,
+    pub fn init(procs: *gl.ProcTable) !SdlWinCon {
+        if (!c.SDL_Init(c.SDL_INIT_VIDEO | c.SDL_INIT_GAMEPAD)) {
+            std.log.err("SDL Init failed : {s}", .{c.SDL_GetError()});
+            return error.SDL_INIT;
+        }
+
+        _ = c.SDL_GL_SetAttribute(c.SDL_GL_CONTEXT_FLAGS, 0);
+        _ = c.SDL_GL_SetAttribute(c.SDL_GL_CONTEXT_PROFILE_MASK, c.SDL_GL_CONTEXT_PROFILE_CORE);
+        _ = c.SDL_GL_SetAttribute(c.SDL_GL_CONTEXT_MAJOR_VERSION, 3);
+        _ = c.SDL_GL_SetAttribute(c.SDL_GL_CONTEXT_MINOR_VERSION, 2);
+        _ = c.SDL_GL_SetAttribute(c.SDL_GL_DOUBLEBUFFER, 1);
+        _ = c.SDL_GL_SetAttribute(c.SDL_GL_DEPTH_SIZE, 24);
+        _ = c.SDL_GL_SetAttribute(c.SDL_GL_STENCIL_SIZE, 8);
+
+        const window = c.SDL_CreateWindow("Renzig", 800, 600, c.SDL_WINDOW_OPENGL | c.SDL_WINDOW_RESIZABLE);
+        if (window == null) {
+            std.log.err("SDL create window failed : {s}", .{c.SDL_GetError()});
+            return error.SDL_CREATE_WINDOW;
+        }
+
+        const context = c.SDL_GL_CreateContext(window);
+        if (context == null) {
+            std.log.err("SDL create context failed : {s}", .{c.SDL_GetError()});
+            return error.SDL_CREATE_CONTEXT;
+        }
+
+        _ = c.SDL_GL_MakeCurrent(window, context);
+        _ = c.SDL_GL_SetSwapInterval(1);
+
+        if (!procs.init(c.SDL_GL_GetProcAddress)) return error.InitFailed;
+        return .{ .context = context, .window = window.? };
+    }
+
+    pub fn deinit(self: SdlWinCon) void {
+        _ = c.SDL_Quit();
+        _ = c.SDL_DestroyWindow(self.window);
+        _ = c.SDL_GL_DestroyContext(self.context);
+    }
+};
+
+pub fn run() !void {
+    var gpa = std.heap.GeneralPurposeAllocator(.{ .thread_safe = true }){};
+    const alloc = gpa.allocator();
+
+    var procs: gl.ProcTable = undefined;
+
+    const GLSL_VERSION = "#version 130";
+
+    // Initialize SDL
+    const window_context = try SdlWinCon.init(&procs);
+    defer window_context.deinit();
+    const window = window_context.window;
+    const context = window_context.context;
+
+    gl.makeProcTableCurrent(&procs);
+    defer gl.makeProcTableCurrent(null);
+
+    const program = try resources.createProgram();
+    const scene_renderer = try RenderState.init(alloc, program);
+
+    var scne = Scene{};
+    const cube = scene.Object{
+        .cube = scene.Cube{
+            .center = Vec3.zero,
+            .rotation = Vec3.zero,
+            .scale = Vec3.one.scale(0.5),
+        },
+    };
+    try scne.objects.append(alloc, cube);
+
+    _ = c.CIMGUI_CHECKVERSION();
+    _ = c.ImGui_CreateContext(null);
+    defer c.ImGui_DestroyContext(null);
+
+    const imio = c.ImGui_GetIO();
+    imio.*.ConfigFlags = c.ImGuiConfigFlags_NavEnableKeyboard;
+
+    c.ImGui_StyleColorsDark(null);
+
+    _ = c.cImGui_ImplSDL3_InitForOpenGL(window, context.?);
+    defer c.cImGui_ImplSDL3_Shutdown();
+    _ = c.cImGui_ImplOpenGL3_InitEx(GLSL_VERSION);
+    defer c.cImGui_ImplOpenGL3_Shutdown();
+
+    main_loop: while (true) {
+        var event: c.SDL_Event = undefined;
+        while (c.SDL_PollEvent(&event)) {
+            _ = c.cImGui_ImplSDL3_ProcessEvent(&event);
+            switch (event.type) {
+                c.SDL_EVENT_QUIT => {
+                    break :main_loop;
+                },
+                else => {},
+            }
+        }
+
+        c.cImGui_ImplOpenGL3_NewFrame();
+        c.cImGui_ImplSDL3_NewFrame();
+        c.ImGui_NewFrame();
+
+        c.ImGui_ShowDemoWindow(null);
+
+        c.ImGui_Render();
+
+        gl.Viewport(0, 0, @intFromFloat(imio.*.DisplaySize.x), @intFromFloat(imio.*.DisplaySize.y));
+        gl.ClearColor(0.0, 0.0, 0.0, 1.0);
+        gl.Clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+        scene_renderer.render(scne, imio);
+
+        c.cImGui_ImplOpenGL3_RenderDrawData(c.ImGui_GetDrawData());
+        _ = c.SDL_GL_SwapWindow(window);
+    }
+}
