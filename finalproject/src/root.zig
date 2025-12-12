@@ -178,13 +178,11 @@ pub fn run() !void {
                 c.ImGui_ResetMouseDragDeltaEx(c.ImGuiMouseButton_Middle);
             }
 
-            // Example B: Object Selection (Left Click)
             // if (c.ImGui_IsMouseClicked(c.ImGuiMouseButton_Left, false)) {
             //     // The user just clicked the Scene (not a UI window)
             //     // Perform Raycast here...
             // }
-            //
-            //
+
             if (io.*.MouseWheel != 0.0) {
                 scne.camera.zoom(io.*.MouseWheel);
             }
