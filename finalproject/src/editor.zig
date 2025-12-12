@@ -9,37 +9,42 @@ pub const EditorState = struct {
 };
 
 pub fn drawObjectWindow(e_state: *EditorState, scne: scene.Scene) !void {
-    //
-    if (c.ImGui_Begin("Object Graph", null, 0)) {
-        defer c.ImGui_End();
-        {
-            if (c.ImGui_BeginMenuBar()) {
-                defer c.ImGui_EndMenuBar();
-
-                if (c.ImGui_BeginMenu("File")) {
-                    defer c.ImGui_EndMenu();
-                    if (c.ImGui_MenuItem("Open..")) {}
-                    if (c.ImGui_MenuItem("Save")) {}
-                    if (c.ImGui_MenuItem("Close")) {}
-                }
-            }
-        }
+    const is_expanded = c.ImGui_Begin("Object Graph", null, 0);
+    defer c.ImGui_End();
+    if (is_expanded) {
+        // if (c.ImGui_BeginMenuBar()) {
+        //     defer c.ImGui_EndMenuBar();
+        //
+        //     if (c.ImGui_BeginMenu("File")) {
+        //         defer c.ImGui_EndMenu();
+        //         if (c.ImGui_MenuItem("Open..")) {}
+        //         if (c.ImGui_MenuItem("Save")) {}
+        //         if (c.ImGui_MenuItem("Close")) {}
+        //     }
+        // }
         // // Edit a color stored as 4 floats
-        var my_color = Vec3.zero;
-        var selected_obj: scene.Object = undefined;
-        if (e_state) {
-            selected_obj = scne.objects.get(e_state.selected_obj_idx);
-            const mat_idx = selected_obj.materail_idx;
-            my_color = scne.materials.items[mat_idx].color;
-        }
-        _ = c.ImGui_ColorEdit4("Color", &my_color.x, 0);
 
+        var zero = Vec3.zero;
+        var my_color_ptr: *Vec3 = &zero;
+        var selected_obj: scene.Object = undefined;
+        if (e_state.selected_obj_idx) |obj_idx| {
+            selected_obj = scne.objects.get(obj_idx);
+            const mat_idx = selected_obj.materail_idx;
+            my_color_ptr = &scne.materials.items[mat_idx].color;
+        }
+
+        _ = c.ImGui_ColorEdit3("Color", &my_color_ptr.x, 0);
+        // c.ImGui_ColorEdit3("MyColor##1", (float*)&color, base_flags);
         {
             if (c.ImGui_BeginChild("Scrolling", .{ .x = 0, .y = 0 }, 0, 0)) {
                 defer c.ImGui_EndChild();
-                for (scne.objects.items(.name)) |name| {
-                    c.ImGui_TextUnformatted(name.ptr);
-                    // c.ImGui_Text("%s: Some text", &name);
+                for (scne.objects.items(.name), 0..) |name, i| {
+                    c.ImGui_PushIDInt(@intCast(i));
+                    defer c.ImGui_PopID();
+                    var is_selected = if (e_state.selected_obj_idx) |idx| idx == i else false;
+                    if (c.ImGui_SelectableBoolPtrEx(name.ptr, &is_selected, 0, .{ .x = 0, .y = 0 })) {
+                        e_state.selected_obj_idx = i;
+                    }
                 }
             }
         }

@@ -45,7 +45,7 @@ const resources = @import("resources.zig");
 const ApplicationState = struct {
     scene: Scene,
     render_state: RenderState,
-    editor_state: EditorState,
+    editor_state: editor.EditorState,
     input_state: InputState,
     resources: @import("resources.zig"),
 };
@@ -140,7 +140,7 @@ pub fn run() !void {
     try scne.objects.append(alloc, cube2);
     try scene_renderer.loadScene(alloc, &scne);
 
-    var e_stat = editor.EditorState{};
+    var e_state = editor.EditorState{};
 
     _ = c.CIMGUI_CHECKVERSION();
     _ = c.ImGui_CreateContext(null);
@@ -178,7 +178,7 @@ pub fn run() !void {
         //     MySaveFunction();
         // ImGui::InputText("string", buf, IM_ARRAYSIZE(buf));
         // ImGui::SliderFloat("float", &f, 0.0f, 1.0f);
-        try editor.drawObjectWindow(scne);
+        try editor.drawObjectWindow(&e_state, scne);
         // ImGui::InputText("string", buf, IM_ARRAYSIZE(buf));
         // ImGui::SliderFloat("float", &f, 0.0f, 1.0f);
 
