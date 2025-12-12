@@ -17,6 +17,11 @@ pub const Cube = struct {
 pub const Object = union(enum) {
     sphere: Sphere,
     cube: Cube,
+    static_mesh: struct {
+        mesh_id: usize, // Index into renderer.meshes
+        transform: zlm.Mat4,
+        color: zlm.Vec3,
+    },
     // pentagon,
     // pyramid,
     // camera,

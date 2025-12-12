@@ -71,12 +71,23 @@ const VerticeShits = struct {
     vbo: c_uint = 0,
 };
 
+pub const GPUMesh = struct {
+    vao: c_uint,
+    vbo: c_uint,
+    vertex_count: usize,
+
+    /// Clean up GL resources
+    pub fn deinit(self: GPUMesh) void {
+        gl.DeleteVertexArrays(1, &self.vao);
+        gl.DeleteBuffers(1, &self.vbo);
+    }
+};
+
 pub const SceneRenderer = struct {
     vertex_objs: [std.meta.fields(scene.Object).len]VerticeShits = undefined,
+    meshes: std.ArrayList(GPUMesh) = .empty,
     program: c_uint,
     pub fn init(allocator: std.mem.Allocator, program: c_uint) !SceneRenderer {
-        _ = allocator;
-
         var renderer = SceneRenderer{
             .vertex_objs = undefined,
             .program = program,
@@ -151,10 +162,55 @@ pub const SceneRenderer = struct {
                     gl.Uniform3f(gl.GetUniformLocation(self.program, "objectColor"), 1, 0.5, 0);
                     gl.DrawArrays(gl.TRIANGLES, 0, cube_vertices.len);
                 },
+                .static_mesh => {
+                    const mesh_obj = obj_data.static_mesh;
+
+                    if (mesh_obj.mesh_id >= self.meshes.items.len) continue;
+
+                    const mesh = self.meshes.items[mesh_obj.mesh_id];
+
+                    gl.BindVertexArray(mesh.vao);
+
+                    // Setup uniforms based on the stored transform
+                    gl.UniformMatrix4fv(gl.GetUniformLocation(self.program, "model"), 1, gl.FALSE, @ptrCast(&mesh_obj.transform.fields[0][0]));
+
+                    // Use generic draw call using the stored vertex count
+                    gl.DrawArrays(gl.TRIANGLES, 0, @intCast(mesh.vertex_count));
+                },
             }
         }
     }
 };
+
+fn createMesh(vertices: []const Vertex) !GPUMesh {
+    var vao: c_uint = 0;
+    var vbo: c_uint = 0;
+
+    gl.GenVertexArrays(1, @ptrCast(&vao));
+    gl.GenBuffers(1, @ptrCast(&vbo));
+
+    gl.BindVertexArray(vao);
+    gl.BindBuffer(gl.ARRAY_BUFFER, vbo);
+
+    // Upload the data
+    gl.BufferData(gl.ARRAY_BUFFER, @intCast(vertices.len * @sizeOf(Vertex)), vertices.ptr, gl.STATIC_DRAW);
+
+    // Attributes (same as your existing code)
+    gl.VertexAttribPointer(0, 3, gl.FLOAT, gl.FALSE, @sizeOf(Vertex), @offsetOf(Vertex, "pos"));
+    gl.EnableVertexAttribArray(0);
+    gl.VertexAttribPointer(1, 3, gl.FLOAT, gl.FALSE, @sizeOf(Vertex), @offsetOf(Vertex, "normal"));
+    gl.EnableVertexAttribArray(1);
+    gl.VertexAttribPointer(2, 2, gl.FLOAT, gl.FALSE, @sizeOf(Vertex), @offsetOf(Vertex, "uv"));
+    gl.EnableVertexAttribArray(2);
+
+    gl.BindVertexArray(0); // Unbind
+
+    return GPUMesh{
+        .vao = vao,
+        .vbo = vbo,
+        .vertex_count = vertices.len,
+    };
+}
 
 fn setupVertexBuffer(
     vao: *c_uint,
