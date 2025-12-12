@@ -41,6 +41,7 @@ pub const ObjectType = enum {
 };
 
 pub const Object = struct {
+    name: []const u8,
     transform: zlm.Mat4,
     typ: ObjectType,
     mesh_idx: usize = 0,

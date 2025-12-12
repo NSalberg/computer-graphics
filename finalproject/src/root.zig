@@ -6,6 +6,7 @@ pub const Scene = @import("scene.zig").Scene;
 pub const RenderState = @import("render.zig").SceneRenderer;
 const zlm = @import("zlm").as(f32);
 const Vec3 = zlm.Vec3;
+const editor = @import("editor.zig");
 
 /// This holds what OpenGL needs to render the scene
 // const RenderState = struct {
@@ -21,8 +22,6 @@ const Vec3 = zlm.Vec3;
 /// Undo/redo stacks
 /// Clipboard (copy/paste)
 /// Pending operations (e.g., “waiting for mouse release to commit action”)
-const EditorState = struct {};
-
 ///Raw input normalized into something easy to use.
 ///Examples:
 ///Mouse position delta
@@ -123,6 +122,7 @@ pub fn run() !void {
         .name = "cube",
     });
     const cube = scene.Object{
+        .name = "cube1",
         .transform = zlm.Mat4.createTranslation(Vec3.all(0)),
         .materail_idx = try scne.addMaterial(alloc, .{ .color = Vec3{ .x = 1, .y = 0.5, .z = 0.5 } }),
         .typ = .cube,
@@ -130,6 +130,7 @@ pub fn run() !void {
     };
 
     const cube2 = scene.Object{
+        .name = "cube2",
         .transform = zlm.Mat4.createTranslation(Vec3.all(-0.5)),
         .materail_idx = try scne.addMaterial(alloc, .{ .color = Vec3{ .x = 0.5, .y = 0.0, .z = 0.5 } }),
         .typ = .cube,
@@ -138,6 +139,8 @@ pub fn run() !void {
     try scne.objects.append(alloc, cube);
     try scne.objects.append(alloc, cube2);
     try scene_renderer.loadScene(alloc, &scne);
+
+    var e_stat = editor.EditorState{};
 
     _ = c.CIMGUI_CHECKVERSION();
     _ = c.ImGui_CreateContext(null);
@@ -175,11 +178,7 @@ pub fn run() !void {
         //     MySaveFunction();
         // ImGui::InputText("string", buf, IM_ARRAYSIZE(buf));
         // ImGui::SliderFloat("float", &f, 0.0f, 1.0f);
-        c.ImGui_Text(
-            "Hello,world",
-        );
-        var buf = std.mem.zeroes([100]u8);
-        _ = c.ImGui_InputText("string", &buf, buf.len, 0);
+        try editor.drawObjectWindow(scne);
         // ImGui::InputText("string", buf, IM_ARRAYSIZE(buf));
         // ImGui::SliderFloat("float", &f, 0.0f, 1.0f);
 
