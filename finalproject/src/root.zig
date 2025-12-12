@@ -159,14 +159,40 @@ pub fn run() !void {
 
         c.ImGui_ShowDemoWindow(null);
 
-        c.ImGui_Render();
-
         gl.Viewport(0, 0, @intFromFloat(imio.*.DisplaySize.x), @intFromFloat(imio.*.DisplaySize.y));
         gl.ClearColor(0.0, 0.0, 0.0, 1.0);
         gl.Clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+        const io = c.ImGui_GetIO();
+
+        if (!io.*.WantCaptureMouse) {
+            if (c.ImGui_IsMouseDragging(c.ImGuiMouseButton_Right, 0.0)) {
+                const delta = c.ImGui_GetMouseDragDelta(c.ImGuiMouseButton_Right, 0.0);
+                scne.camera.orbit(delta.x, delta.y);
+                c.ImGui_ResetMouseDragDeltaEx(c.ImGuiMouseButton_Right);
+            }
+
+            if (c.ImGui_IsMouseDragging(c.ImGuiMouseButton_Middle, 0.0)) {
+                const delta = c.ImGui_GetMouseDragDelta(c.ImGuiMouseButton_Middle, 0.0);
+                scne.camera.translate(delta.x, delta.y);
+                std.debug.print("center {f}, target{f}\n", .{ scne.camera.center, scne.camera.target });
+                c.ImGui_ResetMouseDragDeltaEx(c.ImGuiMouseButton_Middle);
+            }
+
+            // Example B: Object Selection (Left Click)
+            // if (c.ImGui_IsMouseClicked(c.ImGuiMouseButton_Left, false)) {
+            //     // The user just clicked the Scene (not a UI window)
+            //     // Perform Raycast here...
+            // }
+            //
+            //
+            if (io.*.MouseWheel != 0.0) {
+                scne.camera.zoom(io.*.MouseWheel);
+            }
+        }
 
         scene_renderer.render(scne, imio);
 
+        c.ImGui_Render();
         c.cImGui_ImplOpenGL3_RenderDrawData(c.ImGui_GetDrawData());
         _ = c.SDL_GL_SwapWindow(window);
     }

@@ -118,22 +118,23 @@ pub const SceneRenderer = struct {
         gl.Enable(gl.DEPTH_TEST);
         defer gl.Disable(gl.DEPTH_TEST);
 
-        const cam = Vec3.one;
+        const cam = scne.camera;
 
-        const view = zlm.Mat4.createLookAt(cam, Vec3.zero, Vec3.new(0, 1, 0));
+        const view = zlm.Mat4.createLookAt(cam.center, cam.target, Vec3.new(0, 1, 0));
         const aspect = imio.*.DisplaySize.x / imio.*.DisplaySize.y;
         const proj = zlm.Mat4.createPerspective(zlm.toRadians(70.0), aspect, 0.1, 100.0);
 
         gl.UniformMatrix4fv(gl.GetUniformLocation(self.program, "view"), 1, gl.FALSE, @ptrCast(&view.fields[0][0]));
         gl.UniformMatrix4fv(gl.GetUniformLocation(self.program, "proj"), 1, gl.FALSE, @ptrCast(&proj.fields[0][0]));
 
-        gl.Uniform3fv(gl.GetUniformLocation(self.program, "viewPos"), 1, @ptrCast(&cam.x));
+        gl.Uniform3fv(gl.GetUniformLocation(self.program, "viewPos"), 1, @ptrCast(&cam.center.x));
         gl.Uniform1f(gl.GetUniformLocation(self.program, "ambient"), 0.3);
 
         const tags = scne.objects.items(.tags);
         const data = scne.objects.items(.data);
 
         for (tags, data, 0..) |tag, obj_data, i| {
+            _ = i;
             switch (tag) {
                 .sphere => {
                     const sphere = obj_data.sphere;
@@ -142,7 +143,7 @@ pub const SceneRenderer = struct {
                 },
                 .cube => {
                     gl.BindVertexArray(self.vertex_objs[0].vao);
-                    std.debug.print("cube {}\n", .{i});
+                    // std.debug.print("cube {}\n", .{i});
                     const cube = obj_data.cube;
                     const translation = zlm.Mat4.createTranslation(cube.center);
                     gl.UniformMatrix4fv(gl.GetUniformLocation(self.program, "model"), 1, gl.FALSE, @ptrCast(&translation.fields[0][0]));
