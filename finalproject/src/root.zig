@@ -115,17 +115,29 @@ pub fn run() !void {
     defer gl.makeProcTableCurrent(null);
 
     const program = try resources.createProgram();
-    const scene_renderer = try RenderState.init(alloc, program);
+    var scene_renderer = try RenderState.init(alloc, program);
 
     var scne = Scene{};
+    const cube_mesh_idx = try scne.addMesh(alloc, .{
+        .vertices = &resources.cube_vertices,
+        .name = "cube",
+    });
     const cube = scene.Object{
-        .cube = scene.Cube{
-            .center = Vec3.zero,
-            .rotation = Vec3.zero,
-            .scale = Vec3.one.scale(0.5),
-        },
+        .transform = zlm.Mat4.createTranslation(Vec3.all(0)),
+        .materail_idx = try scne.addMaterial(alloc, .{ .color = Vec3{ .x = 1, .y = 0.5, .z = 0.5 } }),
+        .typ = .cube,
+        .mesh_idx = cube_mesh_idx,
+    };
+
+    const cube2 = scene.Object{
+        .transform = zlm.Mat4.createTranslation(Vec3.all(-0.5)),
+        .materail_idx = try scne.addMaterial(alloc, .{ .color = Vec3{ .x = 0.5, .y = 0.0, .z = 0.5 } }),
+        .typ = .cube,
+        .mesh_idx = cube_mesh_idx,
     };
     try scne.objects.append(alloc, cube);
+    try scne.objects.append(alloc, cube2);
+    try scene_renderer.loadScene(alloc, &scne);
 
     _ = c.CIMGUI_CHECKVERSION();
     _ = c.ImGui_CreateContext(null);
@@ -158,6 +170,18 @@ pub fn run() !void {
         c.ImGui_NewFrame();
 
         c.ImGui_ShowDemoWindow(null);
+        // ImGui::Text("Hello, world %d", 123);
+        // if (ImGui::Button("Save"))
+        //     MySaveFunction();
+        // ImGui::InputText("string", buf, IM_ARRAYSIZE(buf));
+        // ImGui::SliderFloat("float", &f, 0.0f, 1.0f);
+        c.ImGui_Text(
+            "Hello,world",
+        );
+        var buf = std.mem.zeroes([100]u8);
+        _ = c.ImGui_InputText("string", &buf, buf.len, 0);
+        // ImGui::InputText("string", buf, IM_ARRAYSIZE(buf));
+        // ImGui::SliderFloat("float", &f, 0.0f, 1.0f);
 
         gl.Viewport(0, 0, @intFromFloat(imio.*.DisplaySize.x), @intFromFloat(imio.*.DisplaySize.y));
         gl.ClearColor(0.0, 0.0, 0.0, 1.0);
@@ -188,6 +212,7 @@ pub fn run() !void {
             }
         }
 
+        // scne.objects
         scene_renderer.render(scne, imio);
 
         c.ImGui_Render();

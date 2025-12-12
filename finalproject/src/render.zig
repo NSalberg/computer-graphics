@@ -21,51 +21,6 @@ pub const Vertex = extern struct {
     uv: [2]f32,
 };
 
-pub const cube_vertices = [36]Vertex{
-    // Front (Z+)
-    .{ .pos = .{ -0.5, -0.5, 0.5 }, .normal = .{ 0, 0, 1 }, .uv = .{ 0, 0 } },
-    .{ .pos = .{ 0.5, -0.5, 0.5 }, .normal = .{ 0, 0, 1 }, .uv = .{ 1, 0 } },
-    .{ .pos = .{ 0.5, 0.5, 0.5 }, .normal = .{ 0, 0, 1 }, .uv = .{ 1, 1 } },
-    .{ .pos = .{ -0.5, -0.5, 0.5 }, .normal = .{ 0, 0, 1 }, .uv = .{ 0, 0 } },
-    .{ .pos = .{ 0.5, 0.5, 0.5 }, .normal = .{ 0, 0, 1 }, .uv = .{ 1, 1 } },
-    .{ .pos = .{ -0.5, 0.5, 0.5 }, .normal = .{ 0, 0, 1 }, .uv = .{ 0, 1 } },
-    // Back (Z-)
-    .{ .pos = .{ 0.5, -0.5, -0.5 }, .normal = .{ 0, 0, -1 }, .uv = .{ 0, 0 } },
-    .{ .pos = .{ -0.5, -0.5, -0.5 }, .normal = .{ 0, 0, -1 }, .uv = .{ 1, 0 } },
-    .{ .pos = .{ -0.5, 0.5, -0.5 }, .normal = .{ 0, 0, -1 }, .uv = .{ 1, 1 } },
-    .{ .pos = .{ 0.5, -0.5, -0.5 }, .normal = .{ 0, 0, -1 }, .uv = .{ 0, 0 } },
-    .{ .pos = .{ -0.5, 0.5, -0.5 }, .normal = .{ 0, 0, -1 }, .uv = .{ 1, 1 } },
-    .{ .pos = .{ 0.5, 0.5, -0.5 }, .normal = .{ 0, 0, -1 }, .uv = .{ 0, 1 } },
-    // Left (X-)
-    .{ .pos = .{ -0.5, -0.5, -0.5 }, .normal = .{ -1, 0, 0 }, .uv = .{ 0, 0 } },
-    .{ .pos = .{ -0.5, -0.5, 0.5 }, .normal = .{ -1, 0, 0 }, .uv = .{ 1, 0 } },
-    .{ .pos = .{ -0.5, 0.5, 0.5 }, .normal = .{ -1, 0, 0 }, .uv = .{ 1, 1 } },
-    .{ .pos = .{ -0.5, -0.5, -0.5 }, .normal = .{ -1, 0, 0 }, .uv = .{ 0, 0 } },
-    .{ .pos = .{ -0.5, 0.5, 0.5 }, .normal = .{ -1, 0, 0 }, .uv = .{ 1, 1 } },
-    .{ .pos = .{ -0.5, 0.5, -0.5 }, .normal = .{ -1, 0, 0 }, .uv = .{ 0, 1 } },
-    // Right (X+)
-    .{ .pos = .{ 0.5, -0.5, 0.5 }, .normal = .{ 1, 0, 0 }, .uv = .{ 0, 0 } },
-    .{ .pos = .{ 0.5, -0.5, -0.5 }, .normal = .{ 1, 0, 0 }, .uv = .{ 1, 0 } },
-    .{ .pos = .{ 0.5, 0.5, -0.5 }, .normal = .{ 1, 0, 0 }, .uv = .{ 1, 1 } },
-    .{ .pos = .{ 0.5, -0.5, 0.5 }, .normal = .{ 1, 0, 0 }, .uv = .{ 0, 0 } },
-    .{ .pos = .{ 0.5, 0.5, -0.5 }, .normal = .{ 1, 0, 0 }, .uv = .{ 1, 1 } },
-    .{ .pos = .{ 0.5, 0.5, 0.5 }, .normal = .{ 1, 0, 0 }, .uv = .{ 0, 1 } },
-    // Top (Y+)
-    .{ .pos = .{ -0.5, 0.5, 0.5 }, .normal = .{ 0, 1, 0 }, .uv = .{ 0, 0 } },
-    .{ .pos = .{ 0.5, 0.5, 0.5 }, .normal = .{ 0, 1, 0 }, .uv = .{ 1, 0 } },
-    .{ .pos = .{ 0.5, 0.5, -0.5 }, .normal = .{ 0, 1, 0 }, .uv = .{ 1, 1 } },
-    .{ .pos = .{ -0.5, 0.5, 0.5 }, .normal = .{ 0, 1, 0 }, .uv = .{ 0, 0 } },
-    .{ .pos = .{ 0.5, 0.5, -0.5 }, .normal = .{ 0, 1, 0 }, .uv = .{ 1, 1 } },
-    .{ .pos = .{ -0.5, 0.5, -0.5 }, .normal = .{ 0, 1, 0 }, .uv = .{ 0, 1 } },
-    // Bottom (Y-)
-    .{ .pos = .{ -0.5, -0.5, -0.5 }, .normal = .{ 0, -1, 0 }, .uv = .{ 0, 0 } },
-    .{ .pos = .{ 0.5, -0.5, -0.5 }, .normal = .{ 0, -1, 0 }, .uv = .{ 1, 0 } },
-    .{ .pos = .{ 0.5, -0.5, 0.5 }, .normal = .{ 0, -1, 0 }, .uv = .{ 1, 1 } },
-    .{ .pos = .{ -0.5, -0.5, -0.5 }, .normal = .{ 0, -1, 0 }, .uv = .{ 0, 0 } },
-    .{ .pos = .{ 0.5, -0.5, 0.5 }, .normal = .{ 0, -1, 0 }, .uv = .{ 1, 1 } },
-    .{ .pos = .{ -0.5, -0.5, 0.5 }, .normal = .{ 0, -1, 0 }, .uv = .{ 0, 1 } },
-};
-
 const VerticeShits = struct {
     vao: c_uint = 0,
     vbo: c_uint = 0,
@@ -84,42 +39,28 @@ pub const GPUMesh = struct {
 };
 
 pub const SceneRenderer = struct {
-    vertex_objs: [std.meta.fields(scene.Object).len]VerticeShits = undefined,
     meshes: std.ArrayList(GPUMesh) = .empty,
     program: c_uint,
     pub fn init(allocator: std.mem.Allocator, program: c_uint) !SceneRenderer {
-        var renderer = SceneRenderer{
-            .vertex_objs = undefined,
+        _ = allocator;
+        // const meshes: std.ArrayList(GPUMesh) = .empty;
+
+        const renderer = SceneRenderer{
             .program = program,
         };
 
-        // Initialize each mesh type
-        const fields = std.meta.fields(scene.Object);
-        inline for (fields) |field| {
-            if (comptime std.mem.eql(u8, field.name, "cube")) {
-                renderer.vertex_objs[0] = try createCubeMesh();
-            } else if (comptime std.mem.eql(u8, field.name, "sphere")) {
-                // renderer.vertex_objs[i] = try createSphereMesh();
-            }
-        }
-
         return renderer;
     }
-
-    fn createCubeMesh() !VerticeShits {
-        var vao: c_uint = 0;
-        var vbo: c_uint = 0;
-
-        setupVertexBuffer(&vao, &vbo, &cube_vertices);
-
-        return .{
-            .vao = vao,
-            .vbo = vbo,
-        };
+    pub fn loadScene(self: *SceneRenderer, allocator: std.mem.Allocator, scne: *const Scene) !void {
+        for (scne.meshes.items) |cpu_mesh| {
+            const gpu_mesh = createMesh(cpu_mesh.vertices);
+            try self.meshes.append(allocator, gpu_mesh);
+        }
     }
 
-    fn createSphereMesh() !VerticeShits {
-        return error.SphereUnimpl;
+    pub fn addMesh(self: *SceneRenderer, allocator: std.mem.Allocator, cpu_mesh: scene.CpuMesh) void {
+        const gpu_mesh = createMesh(cpu_mesh.vertices);
+        try self.meshes.append(allocator, gpu_mesh);
     }
 
     pub fn render(self: SceneRenderer, scne: Scene, imio: [*c]c.ImGuiIO) void {
@@ -141,96 +82,49 @@ pub const SceneRenderer = struct {
         gl.Uniform3fv(gl.GetUniformLocation(self.program, "viewPos"), 1, @ptrCast(&cam.center.x));
         gl.Uniform1f(gl.GetUniformLocation(self.program, "ambient"), 0.3);
 
-        const tags = scne.objects.items(.tags);
-        const data = scne.objects.items(.data);
+        const slc = scne.objects.slice();
+        for (slc.items(.transform), slc.items(.typ), slc.items(.mesh_idx), slc.items(.materail_idx)) |transform, typ, mesh_idx, mat_idx| {
+            const gpu_mesh = self.meshes.items[mesh_idx];
+            const color = scne.materials.items[mat_idx].color;
 
-        for (tags, data, 0..) |tag, obj_data, i| {
-            _ = i;
-            switch (tag) {
-                .sphere => {
-                    const sphere = obj_data.sphere;
-                    // Render sphere with sphere data
-                    _ = sphere;
-                },
-                .cube => {
-                    gl.BindVertexArray(self.vertex_objs[0].vao);
-                    // std.debug.print("cube {}\n", .{i});
-                    const cube = obj_data.cube;
-                    const translation = zlm.Mat4.createTranslation(cube.center);
-                    gl.UniformMatrix4fv(gl.GetUniformLocation(self.program, "model"), 1, gl.FALSE, @ptrCast(&translation.fields[0][0]));
+            gl.BindVertexArray(gpu_mesh.vao);
+            gl.UniformMatrix4fv(gl.GetUniformLocation(self.program, "model"), 1, gl.FALSE, @ptrCast(&transform.fields[0][0]));
+            gl.Uniform3fv(gl.GetUniformLocation(self.program, "objectColor"), 1, @ptrCast(&color.x));
+            gl.DrawArrays(gl.TRIANGLES, 0, @intCast(gpu_mesh.vertex_count));
+            _ = typ;
 
-                    gl.Uniform3f(gl.GetUniformLocation(self.program, "objectColor"), 1, 0.5, 0);
-                    gl.DrawArrays(gl.TRIANGLES, 0, cube_vertices.len);
-                },
-                .static_mesh => {
-                    const mesh_obj = obj_data.static_mesh;
-
-                    if (mesh_obj.mesh_id >= self.meshes.items.len) continue;
-
-                    const mesh = self.meshes.items[mesh_obj.mesh_id];
-
-                    gl.BindVertexArray(mesh.vao);
-
-                    // Setup uniforms based on the stored transform
-                    gl.UniformMatrix4fv(gl.GetUniformLocation(self.program, "model"), 1, gl.FALSE, @ptrCast(&mesh_obj.transform.fields[0][0]));
-
-                    // Use generic draw call using the stored vertex count
-                    gl.DrawArrays(gl.TRIANGLES, 0, @intCast(mesh.vertex_count));
-                },
-            }
+            // switch (typ) {
+            //     .cube => {},
+            //     .sphere => {},
+            //     .mesh => {},
+            // }
         }
     }
 };
 
-fn createMesh(vertices: []const Vertex) !GPUMesh {
+fn createMesh(
+    vertices: []const Vertex,
+) GPUMesh {
     var vao: c_uint = 0;
     var vbo: c_uint = 0;
-
+    assert(vertices.len > 0);
     gl.GenVertexArrays(1, @ptrCast(&vao));
     gl.GenBuffers(1, @ptrCast(&vbo));
-
     gl.BindVertexArray(vao);
     gl.BindBuffer(gl.ARRAY_BUFFER, vbo);
-
-    // Upload the data
     gl.BufferData(gl.ARRAY_BUFFER, @intCast(vertices.len * @sizeOf(Vertex)), vertices.ptr, gl.STATIC_DRAW);
 
-    // Attributes (same as your existing code)
     gl.VertexAttribPointer(0, 3, gl.FLOAT, gl.FALSE, @sizeOf(Vertex), @offsetOf(Vertex, "pos"));
-    gl.EnableVertexAttribArray(0);
     gl.VertexAttribPointer(1, 3, gl.FLOAT, gl.FALSE, @sizeOf(Vertex), @offsetOf(Vertex, "normal"));
-    gl.EnableVertexAttribArray(1);
     gl.VertexAttribPointer(2, 2, gl.FLOAT, gl.FALSE, @sizeOf(Vertex), @offsetOf(Vertex, "uv"));
-    gl.EnableVertexAttribArray(2);
 
-    gl.BindVertexArray(0); // Unbind
+    gl.EnableVertexAttribArray(0);
+    gl.EnableVertexAttribArray(1);
+    gl.EnableVertexAttribArray(2);
 
     return GPUMesh{
         .vao = vao,
         .vbo = vbo,
         .vertex_count = vertices.len,
     };
-}
-
-fn setupVertexBuffer(
-    vao: *c_uint,
-    vbo: *c_uint,
-    buffer: []const Vertex,
-) void {
-    assert(vao.* == 0);
-    assert(vbo.* == 0);
-    assert(buffer.len > 0);
-    gl.GenVertexArrays(1, @ptrCast(vao));
-    gl.GenBuffers(1, @ptrCast(vbo));
-    gl.BindVertexArray(vao.*);
-    gl.BindBuffer(gl.ARRAY_BUFFER, vbo.*);
-    gl.BufferData(gl.ARRAY_BUFFER, @intCast(buffer.len * @sizeOf(Vertex)), buffer.ptr, gl.STATIC_DRAW);
-
-    gl.VertexAttribPointer(0, 3, gl.FLOAT, gl.FALSE, @sizeOf(Vertex), @offsetOf(Vertex, "pos"));
-    gl.VertexAttribPointer(1, 3, gl.FLOAT, gl.FALSE, @sizeOf(Vertex), @offsetOf(Vertex, "normal"));
-    gl.VertexAttribPointer(2, 2, gl.FLOAT, gl.FALSE, @sizeOf(Vertex), @offsetOf(Vertex, "uv"));
-
-    gl.EnableVertexAttribArray(0);
-    gl.EnableVertexAttribArray(1);
-    gl.EnableVertexAttribArray(2);
 }

@@ -1,6 +1,7 @@
 const std = @import("std");
 const zlm = @import("zlm").as(f32);
 const Vec3 = zlm.Vec3;
+const Vertex = @import("render.zig").Vertex;
 
 pub const Sphere = struct {
     center: Vec3,
@@ -14,26 +15,37 @@ pub const Cube = struct {
     rotation: Vec3,
 };
 
-pub const Object = union(enum) {
-    sphere: Sphere,
-    cube: Cube,
-    static_mesh: struct {
-        mesh_id: usize, // Index into renderer.meshes
-        transform: zlm.Mat4,
-        color: zlm.Vec3,
-    },
-    // pentagon,
-    // pyramid,
-    // camera,
-    //    fn tag(self: U2) usize {
-    pub fn tag(self: Object) usize {
-        switch (self) {
-            .cube => return 0,
-            .sphere => return 1,
-        }
-    }
+// pub const Object = union(enum) {
+//     sphere: Sphere,
+//     cube: Cube,
+//     static_mesh: struct {
+//         mesh_id: usize, // Index into renderer.meshes
+//         transform: zlm.Mat4,
+//         color: zlm.Vec3,
+//     },
+//     // pentagon,
+//     // pyramid,
+//     // camera,
+//     //    fn tag(self: U2) usize {
+//     pub fn tag(self: Object) usize {
+//         switch (self) {
+//             .cube => return 0,
+//             .sphere => return 1,
+//         }
+//     }
+// };
+pub const ObjectType = enum {
+    cube,
+    sphere,
+    mesh,
 };
 
+pub const Object = struct {
+    transform: zlm.Mat4,
+    typ: ObjectType,
+    mesh_idx: usize = 0,
+    materail_idx: usize = 0,
+};
 // const Scene = struct {
 //     objects: Object,
 //     base_transform: zlm.Vec4 = zlm.Vec4.one,
@@ -102,18 +114,28 @@ const Camera = struct {
     }
 };
 
+pub const CpuMesh = struct {
+    vertices: []const Vertex,
+    name: []const u8,
+};
+
+pub const Material = struct {
+    color: Vec3,
+};
+
 /// Describes the 3d world, contains objects, camera, lights, etc.
 pub const Scene = struct {
     camera: Camera = Camera{
         .center = Vec3.one,
         .target = Vec3.zero,
     },
-    // Camera properties
-
-    // output_image: [:0]const u8 = "raytraced.bmp",
+    meshes: std.ArrayList(CpuMesh) = .empty,
+    materials: std.ArrayList(Material) = .empty,
 
     objects: std.MultiArrayList(Object) = .empty,
 
+    // Camera properties
+    // output_image: [:0]const u8 = "raytraced.bmp",
     // background: Vec3 = Vec3{ 0, 0, 0 },
 
     // lights: std.ArrayList(Light),
@@ -124,4 +146,31 @@ pub const Scene = struct {
     //
     // vertices: std.ArrayList(Vec3),
     // normals: std.ArrayList(Vec3),
+    pub fn dupeObject(
+        self: *Scene,
+        allocator: std.mem.Allocator,
+        obj_idx: usize,
+        transform: zlm.Vec4,
+    ) !usize {
+        var d = self.objects.get(obj_idx);
+        d.transform = transform;
+        try self.objects.append(allocator, d);
+    }
+
+    /// add a Material to the material ArrayList, returns its index
+    pub fn addMaterial(self: *Scene, allocator: std.mem.Allocator, mat: Material) !usize {
+        try self.materials.append(allocator, mat);
+        return self.materials.items.len - 1;
+    }
+
+    /// add a Mesh to the mesh ArrayList, returns its index
+    pub fn addMesh(self: *Scene, allocator: std.mem.Allocator, mesh: CpuMesh) !usize {
+        try self.meshes.append(allocator, mesh);
+        return self.meshes.items.len - 1;
+    }
+
+    pub fn addObject(self: *Scene, allocator: std.mem.Allocator, obj: Object) !usize {
+        try self.objects.append(allocator, obj);
+        return self.objects.len - 1;
+    }
 };
