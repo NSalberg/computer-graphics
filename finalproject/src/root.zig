@@ -173,7 +173,7 @@ pub fn run() !void {
         c.ImGui_NewFrame();
 
         // DEMO WINDOW
-        // c.ImGui_ShowDemoWindow(null);
+        c.ImGui_ShowDemoWindow(null);
         try editor.drawObjectWindow(
             alloc,
             &e_state,
