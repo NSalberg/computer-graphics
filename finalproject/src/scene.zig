@@ -3,37 +3,6 @@ const zlm = @import("zlm").as(f32);
 const Vec3 = zlm.Vec3;
 const Vertex = @import("render.zig").Vertex;
 
-pub const Sphere = struct {
-    center: Vec3,
-    radius: f32,
-    scale: Vec3,
-};
-
-pub const Cube = struct {
-    center: Vec3,
-    scale: Vec3,
-    rotation: Vec3,
-};
-
-// pub const Object = union(enum) {
-//     sphere: Sphere,
-//     cube: Cube,
-//     static_mesh: struct {
-//         mesh_id: usize, // Index into renderer.meshes
-//         transform: zlm.Mat4,
-//         color: zlm.Vec3,
-//     },
-//     // pentagon,
-//     // pyramid,
-//     // camera,
-//     //    fn tag(self: U2) usize {
-//     pub fn tag(self: Object) usize {
-//         switch (self) {
-//             .cube => return 0,
-//             .sphere => return 1,
-//         }
-//     }
-// };
 pub const ObjectType = enum {
     cube,
     sphere,
@@ -47,10 +16,7 @@ pub const Object = struct {
     mesh_idx: usize = 0,
     materail_idx: usize = 0,
 };
-// const Scene = struct {
-//     objects: Object,
-//     base_transform: zlm.Vec4 = zlm.Vec4.one,
-// };
+
 const Camera = struct {
     center: Vec3,
     target: Vec3,

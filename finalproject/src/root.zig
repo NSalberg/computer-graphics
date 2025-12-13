@@ -173,14 +173,7 @@ pub fn run() !void {
         c.ImGui_NewFrame();
 
         c.ImGui_ShowDemoWindow(null);
-        // ImGui::Text("Hello, world %d", 123);
-        // if (ImGui::Button("Save"))
-        //     MySaveFunction();
-        // ImGui::InputText("string", buf, IM_ARRAYSIZE(buf));
-        // ImGui::SliderFloat("float", &f, 0.0f, 1.0f);
-        try editor.drawObjectWindow(&e_state, scne);
-        // ImGui::InputText("string", buf, IM_ARRAYSIZE(buf));
-        // ImGui::SliderFloat("float", &f, 0.0f, 1.0f);
+        try editor.drawObjectWindow(alloc, &e_state, scne);
 
         gl.Viewport(0, 0, @intFromFloat(imio.*.DisplaySize.x), @intFromFloat(imio.*.DisplaySize.y));
         gl.ClearColor(0.0, 0.0, 0.0, 1.0);
