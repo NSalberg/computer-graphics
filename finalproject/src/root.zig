@@ -173,7 +173,12 @@ pub fn run() !void {
         c.ImGui_NewFrame();
 
         c.ImGui_ShowDemoWindow(null);
-        try editor.drawObjectWindow(alloc, &e_state, scne);
+        try editor.drawObjectWindow(
+            alloc,
+            &e_state,
+            &scne,
+            &scene_renderer,
+        );
 
         gl.Viewport(0, 0, @intFromFloat(imio.*.DisplaySize.x), @intFromFloat(imio.*.DisplaySize.y));
         gl.ClearColor(0.0, 0.0, 0.0, 1.0);

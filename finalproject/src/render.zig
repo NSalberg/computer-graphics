@@ -58,7 +58,7 @@ pub const SceneRenderer = struct {
         }
     }
 
-    pub fn addMesh(self: *SceneRenderer, allocator: std.mem.Allocator, cpu_mesh: scene.CpuMesh) void {
+    pub fn addMesh(self: *SceneRenderer, allocator: std.mem.Allocator, cpu_mesh: scene.CpuMesh) !void {
         const gpu_mesh = createMesh(cpu_mesh.vertices);
         try self.meshes.append(allocator, gpu_mesh);
     }

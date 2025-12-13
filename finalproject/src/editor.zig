@@ -4,6 +4,7 @@ const scene = @import("scene.zig");
 const zlm = @import("zlm").as(f32);
 const Vec3 = zlm.Vec3;
 const model_loader = @import("model_loader.zig");
+const render = @import("render.zig");
 
 pub const EditorState = struct {
     selected_obj_idx: ?usize = null,
@@ -12,7 +13,6 @@ pub const EditorState = struct {
     show_open_dialog_changed: bool = false,
     obj_file_list: ?[][]u8 = null,
 };
-var inc: usize = 0;
 
 pub fn scanForObjFile(allocator: std.mem.Allocator, dir: std.fs.Dir) ![][]u8 {
     var obj_file_list: std.ArrayList([]u8) = .empty;
@@ -34,9 +34,9 @@ fn scanRecursive(allocator: std.mem.Allocator, dir: std.fs.Dir, list: *std.Array
             var sub_dir = try dir.openDir(entry.name, .{ .iterate = true });
             defer sub_dir.close();
             try scanRecursive(allocator, sub_dir, list, full_path);
-            allocator.free(full_path);
+            // allocator.free(full_path);
         } else {
-            allocator.free(full_path);
+            // allocator.free(full_path);
         }
     }
 }
@@ -45,6 +45,7 @@ pub fn drawObjectWindow(
     allocator: std.mem.Allocator,
     e_state: *EditorState,
     scne: *scene.Scene,
+    renderer: *render.SceneRenderer,
 ) !void {
     const flags = c.ImGuiWindowFlags_MenuBar;
     const is_expanded = c.ImGui_Begin("Objects Editor", null, flags);
@@ -73,12 +74,10 @@ pub fn drawObjectWindow(
                 return err;
             };
             defer dir.close();
-            var arena = std.heap.ArenaAllocator.init(allocator);
-            e_state.obj_file_list = try scanForObjFile(arena.allocator(), dir);
+            e_state.obj_file_list = try scanForObjFile(allocator, dir);
             e_state.show_open_dialog_changed = false;
         }
 
-        // Always center the modal
         const center = c.ImGuiViewport_GetCenter(c.ImGui_GetMainViewport());
         c.ImGui_SetNextWindowPos(center, c.ImGuiCond_Appearing);
 
@@ -96,10 +95,6 @@ pub fn drawObjectWindow(
             if (c.ImGui_BeginChild("FileList", .{ .x = 400, .y = 200 }, 0, 0)) {
                 defer c.ImGui_EndChild();
 
-                // if (num_objs == 0) {
-                //     c.ImGui_Text("No .obj files found in directory: ");
-                // }
-
                 if (e_state.obj_file_list) |file_list| {
                     if (file_list.len == 0) {
                         c.ImGui_TextDisabled("No .obj files found in this folder.");
@@ -108,11 +103,15 @@ pub fn drawObjectWindow(
                         if (c.ImGui_Selectable(file.ptr)) {
                             std.debug.print("Selected file: {s}\n", .{file});
 
-                            // TODO: Call load function here
-                            // model_loader.loadObjFile(
-                            //     entry.name,
-                            //     scne,
-                            // );
+                            const dir = std.fs.cwd();
+                            const obj_idx = try model_loader.loadObjFile(
+                                allocator,
+                                dir,
+                                file,
+                                scne,
+                                renderer,
+                            );
+                            std.debug.print("obj_idx: {}", .{obj_idx});
 
                             e_state.show_open_dialog = false;
                         }
@@ -124,7 +123,6 @@ pub fn drawObjectWindow(
                 e_state.show_open_dialog = false;
             }
         }
-        // Edit a color stored as 4 floats
 
         var zero = Vec3.zero;
         var my_color_ptr: *Vec3 = &zero;

@@ -9,31 +9,24 @@ const Vec3 = zlm.Vec3;
 const Vec2 = zlm.Vec2;
 const Vertex = @import("render.zig").Vertex;
 
-pub fn loadObjFile(allocator: std.mem.Allocator, path: []const u8, scne: *Scene, renderer: *SceneRenderer) !usize {
-    const dir = try std.fs.openDirAbsolute("", .{});
-    defer dir.close();
-
-    var file = try std.fs.openFileAbsolute(path, .{ .mode = .read_only });
-    defer file.close();
-    const stat_size = std.math.cast(usize, try file.getEndPos()) orelse return error.FileTooBig;
-
-    const file_contents = file.readToEndAllocOptions(allocator, stat_size, stat_size, .of(u8), null);
+pub fn loadObjFile(allocator: std.mem.Allocator, dir: std.fs.Dir, path: []const u8, scne: *Scene, renderer: *SceneRenderer) !usize {
+    const file_contents = try dir.readFileAlloc(allocator, path, std.math.maxInt(usize));
 
     const c = std.mem.trimRight(u8, file_contents, &std.ascii.whitespace);
 
-    const vertices = parseObj(allocator, c);
+    const vertices = try parseObj(allocator, c);
 
     const new_cpu_mesh = CpuMesh{
-        .vertices = try vertices.toOwnedSlice(),
+        .vertices = vertices,
         .name = try allocator.dupe(u8, path),
     };
 
     const mesh_idx = try scne.addMesh(allocator, new_cpu_mesh);
 
-    renderer.addMesh(allocator, new_cpu_mesh);
+    try renderer.addMesh(allocator, new_cpu_mesh);
 
     const new_obj = Object{
-        .transform = zlm.Mat4.identity(),
+        .transform = zlm.Mat4.identity,
         .mesh_idx = mesh_idx,
         .materail_idx = 0,
         .name = try allocator.dupe(u8, std.fs.path.basename(path)),
@@ -48,16 +41,16 @@ pub fn loadObjFile(allocator: std.mem.Allocator, path: []const u8, scne: *Scene,
 /// Caller owns the returned vertex slice
 pub fn parseObj(allocator: std.mem.Allocator, file_content: []const u8) ![]Vertex {
     var temp_positions: std.ArrayList(Vec3) = .empty;
-    defer temp_positions.deinit();
+    defer temp_positions.deinit(allocator);
 
     var temp_normals: std.ArrayList(Vec3) = .empty;
-    defer temp_normals.deinit();
+    defer temp_normals.deinit(allocator);
 
     var temp_uvs: std.ArrayList(Vec2) = .empty;
-    defer temp_uvs.deinit();
+    defer temp_uvs.deinit(allocator);
 
     var final_vertices: std.ArrayList(Vertex) = .empty;
-    errdefer final_vertices.deinit();
+    errdefer final_vertices.deinit(allocator);
 
     var lines = std.mem.tokenizeAny(u8, file_content, "\r\n");
     while (lines.next()) |line| {
@@ -114,7 +107,7 @@ pub fn parseObj(allocator: std.mem.Allocator, file_content: []const u8) ![]Verte
         }
     }
 
-    return final_vertices.toOwnedSlice();
+    return final_vertices.toOwnedSlice(allocator);
 }
 
 // Helpers
@@ -153,5 +146,9 @@ fn parseFaceIndices(token: []const u8, positions: []const Vec3, uvs: []const Vec
         }
     }
 
-    return Vertex{ .pos = pos, .normal = normal, .uv = uv };
+    return Vertex{
+        .pos = .{ pos.x, pos.y, pos.z },
+        .normal = .{ normal.x, normal.y, normal.z },
+        .uv = .{ uv.x, uv.y },
+    };
 }
