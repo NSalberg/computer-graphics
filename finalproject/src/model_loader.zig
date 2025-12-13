@@ -9,7 +9,13 @@ const Vec3 = zlm.Vec3;
 const Vec2 = zlm.Vec2;
 const Vertex = @import("render.zig").Vertex;
 
-pub fn loadObjFile(allocator: std.mem.Allocator, dir: std.fs.Dir, path: []const u8, scne: *Scene, renderer: *SceneRenderer) !usize {
+pub fn loadObjFile(
+    allocator: std.mem.Allocator,
+    dir: std.fs.Dir,
+    path: []const u8,
+    scne: *Scene,
+    renderer: *SceneRenderer,
+) !usize {
     const file_contents = try dir.readFileAlloc(allocator, path, std.math.maxInt(usize));
 
     const c = std.mem.trimRight(u8, file_contents, &std.ascii.whitespace);
@@ -20,21 +26,9 @@ pub fn loadObjFile(allocator: std.mem.Allocator, dir: std.fs.Dir, path: []const 
         .vertices = vertices,
         .name = try allocator.dupe(u8, path),
     };
-
-    const mesh_idx = try scne.addMesh(allocator, new_cpu_mesh);
-
     try renderer.addMesh(allocator, new_cpu_mesh);
 
-    const new_obj = Object{
-        .transform = zlm.Mat4.identity,
-        .mesh_idx = mesh_idx,
-        .materail_idx = 0,
-        .name = try allocator.dupe(u8, std.fs.path.basename(path)),
-        .typ = .mesh,
-    };
-
-    const obj_idx = try scne.addObject(allocator, new_obj);
-    return obj_idx;
+    return try scne.addMesh(allocator, new_cpu_mesh);
 }
 
 /// Reccomend using an arena here.
@@ -91,14 +85,27 @@ pub fn parseObj(allocator: std.mem.Allocator, file_content: []const u8) ![]Verte
                 count += 1;
             }
 
-            // Triangulate (Fan method)
-            // Triangle 1: 0, 1, 2
+            if (temp_normals.items.len == 0 and count >= 3) {
+                const p0 = Vec3.new(face_verts[0].pos[0], face_verts[0].pos[1], face_verts[0].pos[2]);
+                const p1 = Vec3.new(face_verts[1].pos[0], face_verts[1].pos[1], face_verts[1].pos[2]);
+                const p2 = Vec3.new(face_verts[2].pos[0], face_verts[2].pos[1], face_verts[2].pos[2]);
+
+                const edge1 = p1.sub(p0);
+                const edge2 = p2.sub(p0);
+                const face_normal = edge1.cross(edge2).normalize();
+
+                const n_array = [3]f32{ face_normal.x, face_normal.y, face_normal.z };
+                face_verts[0].normal = n_array;
+                face_verts[1].normal = n_array;
+                face_verts[2].normal = n_array;
+                if (count == 4) face_verts[3].normal = n_array;
+            }
+
             if (count >= 3) {
                 try final_vertices.append(allocator, face_verts[0]);
                 try final_vertices.append(allocator, face_verts[1]);
                 try final_vertices.append(allocator, face_verts[2]);
             }
-            // Triangle 2: 0, 2, 3 (if it was a quad)
             if (count == 4) {
                 try final_vertices.append(allocator, face_verts[0]);
                 try final_vertices.append(allocator, face_verts[2]);
@@ -111,7 +118,6 @@ pub fn parseObj(allocator: std.mem.Allocator, file_content: []const u8) ![]Verte
 }
 
 // Helpers
-
 fn parseFloat(str: ?[]const u8) !f32 {
     if (str) |s| return std.fmt.parseFloat(f32, s);
     return error.InvalidFormat;
@@ -124,11 +130,9 @@ fn parseFaceIndices(token: []const u8, positions: []const Vec3, uvs: []const Vec
     const vt_str = iter.next();
     const vn_str = iter.next();
 
-    // 1. Position (Required)
     const v_idx = try std.fmt.parseInt(usize, v_str.?, 10) - 1; // OBJ is 1-based
     const pos = if (v_idx < positions.len) positions[v_idx] else Vec3.zero;
 
-    // 2. UV (Optional)
     var uv = Vec2.zero;
     if (vt_str) |s| {
         if (s.len > 0) {
@@ -137,7 +141,6 @@ fn parseFaceIndices(token: []const u8, positions: []const Vec3, uvs: []const Vec
         }
     }
 
-    // 3. Normal (Optional)
     var normal = Vec3.new(0, 1, 0);
     if (vn_str) |s| {
         if (s.len > 0) {

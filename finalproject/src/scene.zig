@@ -41,15 +41,12 @@ const Camera = struct {
             .y = radius * @cos(phi),
             .z = radius * sin_phi * @cos(theta),
         };
-        std.debug.print("old_off {f}, new_off{f}\n", .{ cur_offset, new_offset });
 
-        // 5. Apply the calculated position relative to the target
         self.center = self.target.add(new_offset);
     }
 
     pub fn translate(self: *Camera, dx: f32, dy: f32) void {
         const sensitivity = 0.005;
-        // const dist = self.center.sub(self.target).length();
         const speed = 1 * sensitivity;
         const world_up = Vec3{ .x = 0, .y = 1, .z = 0 };
         const forward = self.target.sub(self.center).normalize();

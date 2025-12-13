@@ -172,13 +172,23 @@ pub fn run() !void {
         c.cImGui_ImplSDL3_NewFrame();
         c.ImGui_NewFrame();
 
-        c.ImGui_ShowDemoWindow(null);
+        // DEMO WINDOW
+        // c.ImGui_ShowDemoWindow(null);
         try editor.drawObjectWindow(
             alloc,
             &e_state,
             &scne,
             &scene_renderer,
         );
+
+        try editor.drawMeshWindow(
+            alloc,
+            &e_state,
+            &scne,
+            // &scene_renderer,
+        );
+
+        try editor.drawFileSelectPopup(alloc, &e_state, &scne, &scene_renderer);
 
         gl.Viewport(0, 0, @intFromFloat(imio.*.DisplaySize.x), @intFromFloat(imio.*.DisplaySize.y));
         gl.ClearColor(0.0, 0.0, 0.0, 1.0);
