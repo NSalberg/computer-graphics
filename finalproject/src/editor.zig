@@ -78,7 +78,7 @@ pub fn drawObjectWindow(
             const mat_idx = selected_obj.materail_idx;
             my_color_ptr = &scne.materials.items[mat_idx].color;
 
-            const drag_speed = 0.01;
+            const drag_speed = 0.001;
             var translation = extractTranslation(selected_obj.transform);
 
             if (c.ImGui_DragFloat3Ex("Translation (x, y, z)", &translation.x, drag_speed, -std.math.floatMax(f32), std.math.floatMax(f32), "%.3f", 0)) {
@@ -90,7 +90,7 @@ pub fn drawObjectWindow(
 
             // Scale
             var scale = extractScale(selected_obj.transform);
-            if (c.ImGui_DragFloat3Ex("Scale (x, y, z)", &scale.x, drag_speed, 0.001, 1000.0, "%.3f", 0)) {
+            if (c.ImGui_DragFloat3Ex("Scale (x, y, z)", &scale.x, drag_speed, 0.0000001, 1000.0, "%.3f", 0)) {
                 applyScale(&selected_obj.transform, scale);
                 scne.objects.set(obj_idx, selected_obj);
             }
@@ -283,8 +283,13 @@ pub fn drawMeshWindow(
     if (e_state.selected_mesh_idx) |mesh_idx| {
         if (c.ImGui_Button("Add")) {
             const mesh_name = scne.meshes.items[mesh_idx].name;
+            const mat_idx = try scne.addMaterial(allocator, .{ .color = .{
+                .x = 0.9,
+                .y = 0.3,
+                .z = 0.3,
+            } });
             const new_obj = scene.Object{
-                .materail_idx = 0,
+                .materail_idx = mat_idx,
                 .mesh_idx = mesh_idx,
                 .name = try std.fmt.allocPrint(allocator, "{s}{}", .{ mesh_name, scne.objects.len + 1 }),
                 .typ = .mesh,

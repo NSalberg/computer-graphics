@@ -130,21 +130,39 @@ fn parseFaceIndices(token: []const u8, positions: []const Vec3, uvs: []const Vec
     const vt_str = iter.next();
     const vn_str = iter.next();
 
-    const v_idx = try std.fmt.parseInt(usize, v_str.?, 10) - 1; // OBJ is 1-based
+    const v_raw = try std.fmt.parseInt(isize, v_str.?, 10);
+
+    // Logic: If positive, 1-based -> 0-based. If negative, relative to end.
+    const v_idx: usize = if (v_raw >= 0)
+        @intCast(v_raw - 1)
+    else
+        @intCast(@as(isize, @intCast(positions.len)) + v_raw);
+
     const pos = if (v_idx < positions.len) positions[v_idx] else Vec3.zero;
 
     var uv = Vec2.zero;
     if (vt_str) |s| {
         if (s.len > 0) {
-            const vt_idx = try std.fmt.parseInt(usize, s, 10) - 1;
+            const vt_raw = try std.fmt.parseInt(isize, s, 10);
+            const vt_idx: usize = if (vt_raw >= 0)
+                @intCast(vt_raw - 1)
+            else
+                @intCast(@as(isize, @intCast(uvs.len)) + vt_raw);
+
             if (vt_idx < uvs.len) uv = uvs[vt_idx];
         }
     }
 
+    // 3. Normal (Optional)
     var normal = Vec3.new(0, 1, 0);
     if (vn_str) |s| {
         if (s.len > 0) {
-            const vn_idx = try std.fmt.parseInt(usize, s, 10) - 1;
+            const vn_raw = try std.fmt.parseInt(isize, s, 10);
+            const vn_idx: usize = if (vn_raw >= 0)
+                @intCast(vn_raw - 1)
+            else
+                @intCast(@as(isize, @intCast(normals.len)) + vn_raw);
+
             if (vn_idx < normals.len) normal = normals[vn_idx];
         }
     }
