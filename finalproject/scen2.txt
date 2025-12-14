@@ -1,0 +1,19 @@
+# Exported Scene
+output_image: "output.png"
+film_resolution: 800 600
+camera_pos: -6 2 -4
+camera_fwd: -.77 0 -.64
+camera_up:  0 1 0
+camera_fov_ha: 35
+background: 0 0 0
+
+
+# Lights
+ambient_light: 0.3000 0.3000 0.3000
+
+
+material: .9 .5 .75 .75 .75 .75 .3 .3 .3 32 .2 .2 .2 1.5
+sphere: -0.5000 -0.5000 -0.5000 1.0000
+
+material: .75 .75 .75 .75 .75 .75 .3 .3 .3 32 .2 .2 .2 1.5
+sphere: 0 -50 0 50

@@ -14,6 +14,8 @@ pub const EditorState = struct {
     show_open_dialog: bool = false,
     show_open_dialog_changed: bool = false,
     obj_file_list: ?[][]u8 = null,
+    selected_light_idx: ?usize = null,
+    selected_light_changed: bool = false,
 };
 
 pub fn scanForObjFile(allocator: std.mem.Allocator, dir: std.fs.Dir) ![][]u8 {
@@ -66,7 +68,9 @@ pub fn drawObjectWindow(
             defer c.ImGui_EndMenuBar();
             if (c.ImGui_BeginMenu("File")) {
                 defer c.ImGui_EndMenu();
-                if (c.ImGui_MenuItem("Save")) {}
+                if (c.ImGui_MenuItem("Save Scene")) {
+                    try scene.exportSceneToText(scne, "scene.txt");
+                }
             }
         }
 
@@ -76,11 +80,14 @@ pub fn drawObjectWindow(
         if (e_state.selected_obj_idx) |obj_idx| {
             selected_obj = scne.objects.get(obj_idx);
             const mat_idx = selected_obj.materail_idx;
-            my_color_ptr = &scne.materials.items[mat_idx].color;
+            my_color_ptr = &scne.materials.items(.ambient_color)[mat_idx];
+            _ = c.ImGui_ColorEdit3("Color", &my_color_ptr.x, 0);
 
             const drag_speed = 0.001;
-            var translation = extractTranslation(selected_obj.transform);
 
+            // We should really seperate the rotation translation scale vectors.
+            // Translation
+            var translation = extractTranslation(selected_obj.transform);
             if (c.ImGui_DragFloat3Ex("Translation (x, y, z)", &translation.x, drag_speed, -std.math.floatMax(f32), std.math.floatMax(f32), "%.3f", 0)) {
                 selected_obj.transform.fields[3][0] = translation.x;
                 selected_obj.transform.fields[3][1] = translation.y;
@@ -94,13 +101,56 @@ pub fn drawObjectWindow(
                 applyScale(&selected_obj.transform, scale);
                 scne.objects.set(obj_idx, selected_obj);
             }
+            try drawMaterialEditor(scne, mat_idx, flags);
         }
 
-        // pub extern fn ImGui_DragFloatEx(label: [*c]const u8, v: [*c]f32, v_speed: f32, v_min: f32, v_max: f32, format: [*c]const u8, flags: ImGuiSliderFlags) bool;
+        drawScrollingObjWindow(e_state, scne, 0);
+    }
+}
 
-        _ = c.ImGui_ColorEdit3("Color", &my_color_ptr.x, 0);
+fn drawMaterialEditor(scne: *scene.Scene, mat_idx: usize, flags: c_int) !void {
+    if (!c.ImGui_CollapsingHeader("Material Edit", flags))
+        return;
 
-        drawScrollingObjWindow(e_state, scne, flags);
+    var slc = scne.materials.slice();
+    var amb_color_ptr = &slc.items(.ambient_color)[mat_idx];
+    var dif_color_ptr = &slc.items(.diffuse_color)[mat_idx];
+    var transmissive_color_ptr = &slc.items(.transmissive_color)[mat_idx];
+    const specular_coefficient_ptr = &slc.items(.specular_coefficient)[mat_idx];
+    const ior_ptr = &slc.items(.index_of_refraction)[mat_idx];
+
+    _ = c.ImGui_ColorEdit3("Ambient Color", &amb_color_ptr.x, 0);
+    _ = c.ImGui_ColorEdit3("Diffuse Color", &dif_color_ptr.x, 0);
+    _ = c.ImGui_ColorEdit3("Transmissive Color", &transmissive_color_ptr.x, 0);
+
+    const drag_speed = 0.1;
+    _ = c.ImGui_DragFloatEx("Specular Coeeficient", specular_coefficient_ptr, drag_speed, 1, 1000.0, "%.1f", 0);
+    _ = c.ImGui_DragFloatEx("Index of Refraction", ior_ptr, drag_speed, 1, 10.0, "%.1f", 0);
+}
+
+fn drawLightEditor(scne: *scene.Scene, light_idx: usize, flags: c_int) void {
+    if (!c.ImGui_CollapsingHeader("Light Edit", flags))
+        return;
+    const light_ptr = &scne.lights.items[light_idx].data;
+
+    switch (light_ptr.*) {
+        .ambient => |*ambient| {
+            const amb_color_ptr = &ambient.intensity.x;
+            _ = c.ImGui_ColorEdit3("Ambient Light Color", amb_color_ptr, 0);
+        },
+        .directional => |*directional| {
+            const color = &directional.color.x;
+            _ = c.ImGui_ColorEdit3("Color", color, 0);
+
+            const direction = &directional.direction.x;
+            _ = c.ImGui_DragFloat3Ex("Direction from origin (x, y, z)", direction, 0.1, -10, 10, "%.3f", 0);
+        },
+        .point => |*point| {
+            const color = &point.color.x;
+            _ = c.ImGui_ColorEdit3("Color", color, 0);
+            const loc = &point.loc.x;
+            _ = c.ImGui_DragFloat3Ex("Translation (x, y, z)", loc, 0.1, -std.math.floatMax(f32), std.math.floatMax(f32), "%.3f", 0);
+        },
     }
 }
 
@@ -156,6 +206,59 @@ pub fn extractTranslation(transform: zlm.Mat4) zlm.Vec3 {
         transform.fields[3][1],
         transform.fields[3][2],
     );
+}
+
+pub fn drawLightWindow(allocator: std.mem.Allocator, e_state: *EditorState, scne: *scene.Scene) !void {
+    const is_expanded = c.ImGui_Begin("Lights Editor", null, 0);
+    defer c.ImGui_End();
+
+    if (c.ImGui_Button("Add Directional")) {
+        const new_light = scene.Light{
+            .data = .{
+                .directional = .{
+                    .direction = Vec3.new(0, -1, 0),
+                    .color = Vec3.all(0.3),
+                },
+            },
+            .name = try std.fmt.allocPrintSentinel(allocator, "Directional{}", .{scne.lights.items.len}, 0),
+        };
+        _ = try scne.addLight(allocator, new_light);
+    }
+    if (c.ImGui_Button("Add Point")) {
+        std.debug.print("adding point", .{});
+        const new_light = scene.Light{
+            .data = .{
+                .point = .{
+                    .loc = Vec3.new(0, 0, 0),
+                    .color = Vec3.all(0.3),
+                },
+            },
+            .name = try std.fmt.allocPrintSentinel(allocator, "Point{}", .{scne.lights.items.len}, 0),
+        };
+        _ = try scne.addLight(allocator, new_light);
+    }
+    if (is_expanded) {
+        if (e_state.selected_light_idx) |light_id| {
+            drawLightEditor(scne, light_id, 0);
+        }
+    }
+    drawScrollingLight(e_state, scne, 0);
+}
+
+pub fn drawScrollingLight(e_state: *EditorState, scne: *const scene.Scene, flags: c_int) void {
+    const child_begin = c.ImGui_BeginChild("Scrolling", .{ .x = 0, .y = 0 }, 0, flags);
+    defer c.ImGui_EndChild();
+    if (child_begin) {
+        for (scne.lights.items, 0..) |light, i| {
+            c.ImGui_PushIDInt(@intCast(i));
+            defer c.ImGui_PopID();
+            var is_selected = if (e_state.selected_light_idx) |idx| idx == i else false;
+            if (c.ImGui_SelectableBoolPtrEx(light.name.ptr, &is_selected, 0, .{ .x = 0, .y = 0 })) {
+                e_state.selected_light_idx = i;
+                e_state.selected_light_changed = true;
+            }
+        }
+    }
 }
 
 pub fn drawScrollingObjWindow(e_state: *EditorState, scne: *const scene.Scene, flags: c_int) void {
@@ -283,16 +386,22 @@ pub fn drawMeshWindow(
     if (e_state.selected_mesh_idx) |mesh_idx| {
         if (c.ImGui_Button("Add")) {
             const mesh_name = scne.meshes.items[mesh_idx].name;
-            const mat_idx = try scne.addMaterial(allocator, .{ .color = .{
-                .x = 0.9,
-                .y = 0.3,
-                .z = 0.3,
-            } });
+            const mat_idx = try scne.addMaterial(allocator, .{
+                .ambient_color = .{
+                    .x = 0.9,
+                    .y = 0.3,
+                    .z = 0.3,
+                },
+            });
+            var typ: scene.ObjectType = .mesh;
+            if (mesh_idx == 1) {
+                typ = .sphere;
+            }
             const new_obj = scene.Object{
                 .materail_idx = mat_idx,
                 .mesh_idx = mesh_idx,
                 .name = try std.fmt.allocPrint(allocator, "{s}{}", .{ mesh_name, scne.objects.len + 1 }),
-                .typ = .mesh,
+                .typ = typ,
                 .transform = zlm.Mat4.createTranslation(Vec3.zero),
             };
 

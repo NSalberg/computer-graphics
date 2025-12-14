@@ -121,24 +121,38 @@ pub fn run() !void {
         .vertices = &resources.cube_vertices,
         .name = "cube",
     });
+
+    const sphere_mesh_idx = try scne.addMesh(alloc, .{
+        .vertices = &resources.sphere_low,
+        .name = "sphere",
+    });
+
     const cube = scene.Object{
         .name = "cube1",
         .transform = zlm.Mat4.createTranslation(Vec3.all(0)),
-        .materail_idx = try scne.addMaterial(alloc, .{ .color = Vec3{ .x = 1, .y = 0.5, .z = 0.5 } }),
+        .materail_idx = try scne.addMaterial(alloc, .{ .ambient_color = Vec3{ .x = 1, .y = 0.5, .z = 0.5 } }),
         .typ = .cube,
         .mesh_idx = cube_mesh_idx,
     };
 
     const cube2 = scene.Object{
-        .name = "cube2",
+        .name = "sphere",
         .transform = zlm.Mat4.createTranslation(Vec3.all(-0.5)),
-        .materail_idx = try scne.addMaterial(alloc, .{ .color = Vec3{ .x = 0.5, .y = 0.0, .z = 0.5 } }),
-        .typ = .cube,
-        .mesh_idx = cube_mesh_idx,
+        .materail_idx = try scne.addMaterial(alloc, .{ .ambient_color = Vec3{ .x = 0.5, .y = 0.0, .z = 0.5 } }),
+        .typ = .sphere,
+        .mesh_idx = sphere_mesh_idx,
     };
     try scne.objects.append(alloc, cube);
     try scne.objects.append(alloc, cube2);
     try scene_renderer.loadScene(alloc, &scne);
+
+    const ambient = scene.Light{
+        .name = "Ambient0",
+        .data = .{
+            .ambient = .{ .intensity = Vec3.all(0.3) },
+        },
+    };
+    _ = try scne.addLight(alloc, ambient);
 
     var e_state = editor.EditorState{};
 
@@ -173,7 +187,7 @@ pub fn run() !void {
         c.ImGui_NewFrame();
 
         // DEMO WINDOW
-        c.ImGui_ShowDemoWindow(null);
+        // c.ImGui_ShowDemoWindow(null);
         try editor.drawObjectWindow(
             alloc,
             &e_state,
@@ -182,6 +196,12 @@ pub fn run() !void {
         );
 
         try editor.drawMeshWindow(
+            alloc,
+            &e_state,
+            &scne,
+            // &scene_renderer,
+        );
+        try editor.drawLightWindow(
             alloc,
             &e_state,
             &scne,
@@ -213,7 +233,7 @@ pub fn run() !void {
             if (c.ImGui_IsMouseDragging(c.ImGuiMouseButton_Middle, 0.0)) {
                 const delta = c.ImGui_GetMouseDragDelta(c.ImGuiMouseButton_Middle, 0.0);
                 scne.camera.translate(delta.x, delta.y);
-                std.debug.print("center {f}, target{f}\n", .{ scne.camera.center, scne.camera.target });
+                // std.debug.print("center {f}, target{f}\n", .{ scne.camera.center, scne.camera.target });
                 c.ImGui_ResetMouseDragDeltaEx(c.ImGuiMouseButton_Middle);
             }
 

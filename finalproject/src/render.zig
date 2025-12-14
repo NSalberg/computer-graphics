@@ -85,7 +85,7 @@ pub const SceneRenderer = struct {
         const slc = scne.objects.slice();
         for (slc.items(.transform), slc.items(.typ), slc.items(.mesh_idx), slc.items(.materail_idx)) |transform, typ, mesh_idx, mat_idx| {
             const gpu_mesh = self.meshes.items[mesh_idx];
-            const color = scne.materials.items[mat_idx].color;
+            const color = scne.materials.items(.ambient_color)[mat_idx];
 
             gl.BindVertexArray(gpu_mesh.vao);
             gl.UniformMatrix4fv(gl.GetUniformLocation(self.program, "model"), 1, gl.FALSE, @ptrCast(&transform.fields[0][0]));
@@ -98,6 +98,40 @@ pub const SceneRenderer = struct {
             //     .sphere => {},
             //     .mesh => {},
             // }
+        }
+        // Render lights as small white spheres
+        for (scne.lights.items) |light| {
+            switch (light.data) {
+                .point => |point_light| {
+                    const sphere_mesh_idx = 1; // this is bad.. need to create a map of all predefined mesh types
+                    const gpu_mesh = self.meshes.items[sphere_mesh_idx];
+
+                    const scale = zlm.Mat4.createUniformScale(0.1); // Small sphere
+                    const translation = zlm.Mat4.createTranslationXYZ(point_light.loc.x, point_light.loc.y, point_light.loc.z);
+                    const model = translation.mul(scale);
+
+                    gl.BindVertexArray(gpu_mesh.vao);
+                    gl.UniformMatrix4fv(gl.GetUniformLocation(self.program, "model"), 1, gl.FALSE, @ptrCast(&model.fields[0][0]));
+                    gl.Uniform3fv(gl.GetUniformLocation(self.program, "objectColor"), 1, @ptrCast(&point_light.color.x));
+                    gl.DrawArrays(gl.TRIANGLES, 0, @intCast(gpu_mesh.vertex_count));
+                },
+                .directional => |dir_light| {
+                    const sphere_mesh_idx = 1; // this is bad.. need to create a map of all predefined mesh types
+                    const gpu_mesh = self.meshes.items[sphere_mesh_idx];
+
+                    const scale = zlm.Mat4.createUniformScale(0.1); // Small sphere
+                    const translation = zlm.Mat4.createTranslationXYZ(dir_light.direction.x, dir_light.direction.y, dir_light.direction.z);
+                    const model = translation.mul(scale);
+
+                    gl.BindVertexArray(gpu_mesh.vao);
+                    gl.UniformMatrix4fv(gl.GetUniformLocation(self.program, "model"), 1, gl.FALSE, @ptrCast(&model.fields[0][0]));
+                    gl.Uniform3fv(gl.GetUniformLocation(self.program, "objectColor"), 1, @ptrCast(&dir_light.color.x));
+                    gl.DrawArrays(gl.TRIANGLES, 0, @intCast(gpu_mesh.vertex_count));
+                },
+                .ambient => {
+                    // Ambient lights don't have a position, skip rendering
+                },
+            }
         }
     }
 };

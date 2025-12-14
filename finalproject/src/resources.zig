@@ -108,3 +108,78 @@ pub const cube_vertices = [36]Vertex{
     .{ .pos = .{ 0.5, -0.5, 0.5 }, .normal = .{ 0, -1, 0 }, .uv = .{ 1, 1 } },
     .{ .pos = .{ -0.5, -0.5, 0.5 }, .normal = .{ 0, -1, 0 }, .uv = .{ 0, 1 } },
 };
+
+/// Generate a UV sphere with the given subdivisions
+/// segments = number of vertical divisions (longitude)
+/// rings = number of horizontal divisions (latitude)
+/// Returns an array of vertices that can be allocated at comptime or runtime
+pub fn generateSphere(comptime segments: usize, comptime rings: usize) [(segments * rings * 6)]Vertex {
+    var vertices: [(segments * rings * 6)]Vertex = undefined;
+    var idx: usize = 0;
+
+    const pi = std.math.pi;
+    @setEvalBranchQuota(1000000);
+
+    var r: usize = 0;
+    while (r < rings) : (r += 1) {
+        var s: usize = 0;
+        while (s < segments) : (s += 1) {
+            const theta = @as(f32, @floatFromInt(r)) / @as(f32, @floatFromInt(rings)) * pi;
+            const phi = @as(f32, @floatFromInt(s)) / @as(f32, @floatFromInt(segments)) * 2.0 * pi;
+
+            const theta_next = @as(f32, @floatFromInt(r + 1)) / @as(f32, @floatFromInt(rings)) * pi;
+            const phi_next = @as(f32, @floatFromInt(s + 1)) / @as(f32, @floatFromInt(segments)) * 2.0 * pi;
+
+            // Four corners of the quad
+            const p0 = spherePoint(theta, phi);
+            const p1 = spherePoint(theta, phi_next);
+            const p2 = spherePoint(theta_next, phi_next);
+            const p3 = spherePoint(theta_next, phi);
+
+            // UVs
+            const @"u0" = @as(f32, @floatFromInt(s)) / @as(f32, @floatFromInt(segments));
+            const v0 = @as(f32, @floatFromInt(r)) / @as(f32, @floatFromInt(rings));
+            const @"u1" = @as(f32, @floatFromInt(s + 1)) / @as(f32, @floatFromInt(segments));
+            const v1 = @as(f32, @floatFromInt(r + 1)) / @as(f32, @floatFromInt(rings));
+
+            // Triangle 1
+            vertices[idx] = .{ .pos = p0.pos, .normal = p0.normal, .uv = .{ @"u0", v0 } };
+            idx += 1;
+            vertices[idx] = .{ .pos = p1.pos, .normal = p1.normal, .uv = .{ @"u1", v0 } };
+            idx += 1;
+            vertices[idx] = .{ .pos = p2.pos, .normal = p2.normal, .uv = .{ @"u1", v1 } };
+            idx += 1;
+
+            // Triangle 2
+            vertices[idx] = .{ .pos = p0.pos, .normal = p0.normal, .uv = .{ @"u0", v0 } };
+            idx += 1;
+            vertices[idx] = .{ .pos = p2.pos, .normal = p2.normal, .uv = .{ @"u1", v1 } };
+            idx += 1;
+            vertices[idx] = .{ .pos = p3.pos, .normal = p3.normal, .uv = .{ @"u0", v1 } };
+            idx += 1;
+        }
+    }
+
+    return vertices;
+}
+
+fn spherePoint(theta: f32, phi: f32) struct { pos: [3]f32, normal: [3]f32 } {
+    const sin_theta = @sin(theta);
+    const cos_theta = @cos(theta);
+    const sin_phi = @sin(phi);
+    const cos_phi = @cos(phi);
+
+    const x = sin_theta * cos_phi * 0.5;
+    const y = cos_theta * 0.5;
+    const z = sin_theta * sin_phi * 0.5;
+
+    // For a sphere centered at origin, the normal is just the normalized position
+    return .{
+        .pos = .{ x, y, z },
+        .normal = .{ x * 2, y * 2, z * 2 }, // *2 because radius is 0.5
+    };
+}
+
+pub const sphere_low = generateSphere(16, 16); // 1,536 vertices (low poly)
+pub const sphere_med = generateSphere(32, 32); // 6,144 vertices (medium)
+pub const sphere_high = generateSphere(64, 64); // 24,576 vertices (high poly)
